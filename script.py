@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 import google.generativeai as genai
 import logging
+import os
 
 app = Flask(__name__)
 
@@ -12,11 +13,13 @@ log.setLevel(logging.ERROR)
 logging.getLogger('werkzeug').disabled = True
 
 # 1. Configuration de l'API
-GOOGLE_API_KEY = "AQ.Ab8RN6JvbcaIBWcRs6O-OtIuNPmp6ngoTPJSZrddyE1ghFuwzA" # Remplace par ta vraie clé
+# 1. Configuration de l'API
+# Python va chercher la variable 'GOOGLE_API_KEY' directement dans l'environnement de Render
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY") 
 genai.configure(api_key=GOOGLE_API_KEY)
 
 # 2. Initialisation du modèle
-model = genai.GenerativeModel('gemini-2.5-flash-lite')
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 @app.route('/')
 def home():
