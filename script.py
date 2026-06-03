@@ -19,42 +19,32 @@ def get_flow():
         redirect_uri="https://test-ia-6i37.onrender.com/oauth2callback"
     )
 
+# 1. Dans ta route /login
 @app.route('/login')
 def login():
-    flow = get_flow()
+    flow = get_flow() # Ta fonction qui crée le flow
     auth_url, state = flow.authorization_url(prompt='consent', access_type='offline')
-    session['state'] = state
+    session['state'] = state  # Sauvegarde pour vérification au retour
     return redirect(auth_url)
 
+# 2. Dans ta route /oauth2callback
 @app.route('/oauth2callback')
 def oauth2callback():
-    # 1. Vérification de sécurité : l'état doit être dans la session
+    # Vérifie que la session est intacte
     if 'state' not in session:
-        return "Session perdue ou expirée, veuillez vous reconnecter.", 400
-
-    # 2. Reconstruire le flow avec les mêmes paramètres qu'au départ
+        return "Session perdue, veuillez recommencer.", 400
+        
     flow = get_flow()
-    flow.state = session['state'] # On récupère l'état stocké
-
-    # 3. Récupérer le token (c'est ici qu'il vérifie le code_verifier)
-    try:
-        flow.fetch_token(authorization_response=request.url)
-    except Exception as e:
-        # Si le code verifier est manquant, cette erreur s'affichera ici
-        return f"Erreur lors de la récupération du token : {str(e)}", 500
-
-    # 4. Stocker les credentials pour les utiliser plus tard
+    flow.fetch_token(authorization_response=request.url)
+    
+    # Stockage
     credentials = flow.credentials
     session['credentials'] = {
         'token': credentials.token,
         'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes
+        # ... autres champs
     }
     return redirect(url_for('page_agent'))
-
 def get_gmail_service():
     if 'credentials' not in session:
         raise Exception("Non authentifié")
