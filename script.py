@@ -176,14 +176,17 @@ def page_agent():
 def chat_ia():
     donnees = request.get_json()
     message_utilisateur = donnees.get('message', '')
-
-    # 1. Récupération des données mails (si nécessaire pour le contexte)
-    # Tu peux appeler une fonction qui lit tes 5 derniers mails ici 
-    # et les injecte dans le prompt si l'utilisateur demande "résume mes mails"
+    
+    # Préparation du contexte : si l'utilisateur veut ses mails, 
+    # tu pourrais ici appeler une fonction qui lit Gmail et l'injecte dans le prompt
+    prompt = f"""Tu es NZK_AGENT. Tu as accès à la recherche Google. 
+    Réponds de façon concise et stylée à Ange.
+    Question : {message_utilisateur}"""
     
     try:
-        # L'IA utilisera automatiquement l'outil de recherche si elle en a besoin
-        response = model.generate_content(message_utilisateur)
+        # Gemini utilisera l'outil de recherche automatiquement si besoin
+        response = model.generate_content(prompt)
         return jsonify({"reponse": response.text})
     except Exception as e:
-        return jsonify({"reponse": "Erreur de connexion aux sources de données."})
+        print(f"ERREUR IA : {str(e)}")
+        return jsonify({"reponse": "Erreur lors de la connexion au réseau."})
