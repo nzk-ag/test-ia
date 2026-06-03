@@ -28,17 +28,21 @@ def login():
 
 @app.route('/oauth2callback')
 def oauth2callback():
-    # 1. Récupérer l'état de la session
-    state = session.get('state')
-    if not state:
-        return "Session perdue, veuillez vous reconnecter.", 400
+    # 1. Vérifier si l'état (state) existe dans la session
+    if 'state' not in session:
+        return "Erreur : Session expirée ou inexistante. Veuillez réessayer.", 400
 
-    # 2. Reconstruire le flow
+    # 2. Reconstruire le flow avec le redirect_uri configuré
     flow = get_flow()
-    flow.fetch_token(authorization_response=request.url)
+    
+    # 3. Récupérer le token (c'est ici que le code verifier est utilisé)
+    try:
+        flow.fetch_token(authorization_response=request.url)
+    except Exception as e:
+        return f"Erreur lors de la récupération du token : {str(e)}", 500
 
-    # 3. Sauvegarder les credentials
     credentials = flow.credentials
+    # Stocker les infos en session
     session['credentials'] = {
         'token': credentials.token,
         'refresh_token': credentials.refresh_token,
