@@ -44,30 +44,40 @@ def login():
     session['state'] = state
     return redirect(auth_url)
 
+import traceback  # À ajouter en haut de ton fichier ou dans la fonction
+
 @app.route('/oauth2callback')
 def oauth2callback():
     if 'state' not in session:
         return "Session perdue, veuillez recommencer.", 400
         
-    flow = get_flow()
-    
-    # 4. SÉCURITÉ SUPPLÉMENTAIRE
-    # On s'assure de forcer le HTTPS dans l'URL de la requête, au cas où le proxy 
-    # laisserait passer un "http://" qui ferait planter la vérification OAuth.
-    authorization_response = request.url.replace('http://', 'https://')
-    
-    flow.fetch_token(authorization_response=authorization_response)
-    
-    credentials = flow.credentials
-    session['credentials'] = {
-        'token': credentials.token,
-        'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes
-    }
-    return redirect(url_for('page_agent'))
+    try:
+        flow = get_flow()
+        
+        # Force le HTTPS pour éviter les blocages d'Oauthlib
+        authorization_response = request.url.replace('http://', 'https://')
+        
+        # C'est généralement cette ligne qui provoque la 500 si l'échange échoue
+        flow.fetch_token(authorization_response=authorization_response)
+        
+        credentials = flow.credentials
+        session['credentials'] = {
+            'token': credentials.token,
+            'refresh_token': credentials.refresh_token,
+            'token_uri': credentials.token_uri,
+            'client_id': credentials.client_id,
+            'client_secret': credentials.client_secret,
+            'scopes': credentials.scopes
+        }
+        return redirect(url_for('page_agent'))
+        
+    except Exception as e:
+        # 1. Ça va écrire l'erreur dans les logs de Render
+        print(f"!!! CRASH OAUTH !!! : {str(e)}")
+        
+        # 2. Ça va afficher le rapport de bug complet sur ton écran à la place de l'erreur 500
+        erreur_complete = traceback.format_exc()
+        return f"<h2>Le code a planté ! Voici pourquoi :</h2><pre>{erreur_complete}</pre>", 500
 
 # ... Le reste de votre code (get_gmail_service, page_agent, chat_ia) ...
 
