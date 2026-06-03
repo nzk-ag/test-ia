@@ -91,7 +91,7 @@ def oauth2callback():
 
 @app.route('/agent')
 def page_agent():
-    # Si pas connecté, on montre le bouton de connexion (ou redirige vers /login selon préférence)
+    # Si l'utilisateur n'est pas connecté, on montre l'écran d'accès sécurisé
     if 'credentials' not in session:
         return render_template('agent.html', authenticated=False)
 
@@ -106,14 +106,16 @@ def page_agent():
         
         if messages:
             for msg in messages:
+                # Cette fois, on demande le format 'full' pour avoir le corps du texte
                 msg_detail = service.users().messages().get(
                     userId='me', 
                     id=msg['id'], 
-                    format='metadata', 
-                    metadataHeaders=['Subject', 'From']
+                    format='full'
                 ).execute()
                 
-                headers = msg_detail.get('payload', {}).get('headers', [])
+                payload = msg_detail.get('payload', {})
+                headers = payload.get('headers', [])
+                
                 sujet = "Sans sujet"
                 expediteur = "Inconnu"
                 
@@ -122,11 +124,33 @@ def page_agent():
                         sujet = header['value']
                     if header['name'] == 'From':
                         expediteur = header['value']
+                
+                # --- RÉCUPÉRATION DU CONTENU TEXTE ---
+                # Option 1 : On prend le "snippet" (l'aperçu textuel automatique de Google, super propre)
+                texte_mail = msg_detail.get('snippet', '')
+                
+                # Option 2 (Sécurité) : Si le snippet est vide, on cherche dans les différentes parties du mail
+                if not texte_mail:
+                    parts = payload.get('parts', [])
+                    if parts:
+                        for part in parts:
+                            if part['mimeType'] == 'text/plain':
+                                data = part['body'].get('data', '')
+                                texte_mail = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+                                break
+                    else:
+                        data = payload.get('body', {}).get('data', '')
+                        if data:
+                            texte_mail = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+
+                # Si le mail est trop long, on le coupe proprement pour ton interface
+                if len(texte_mail) > 300:
+                    texte_mail = texte_mail[:300] + "..."
                         
-                # On utilise la structure attendue par ton HTML : sujet et resume (qui affiche l'expéditeur ici)
+                # On assemble le tout pour l'envoyer au template agent.html
                 historique_mails.append({
                     'sujet': sujet,
-                    'resume': f"Reçu de : {expediteur}"
+                    'resume': f"De : {expediteur} \n\n Message : {texte_mail}"
                 })
                 
         return render_template('agent.html', authenticated=True, historique=historique_mails)
@@ -138,8 +162,7 @@ def page_agent():
             
         print(f"!!! CRASH DANS PAGE_AGENT !!! : {str(e)}")
         erreur_complete = traceback.format_exc()
-        return f"<h2>Erreur lors de la récupération des mails :</h2><pre>{erreur_complete}</pre>", 500
-
+        return f"<h2>Erreur lors de la récupération du texte des mails :</h2><pre>{erreur_complete}</pre>", 500
 @app.route('/chat', methods=['POST'])
 def chat_ia():
     # Récupère le message envoyé depuis le terminal
