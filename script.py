@@ -1,32 +1,23 @@
 import os
-from flask import Flask, request, jsonify, render_template, redirect, session, url_for
-import google.generativeai as genai
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-from datetime import datetime
+from google.oauth2.credentials import Credentials
 import json
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_secrete_aleatoire")
 
-# Configuration Gemini
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash')
-
-# Configuration OAuth2
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+# Configuration OAuth (Utilise la variable d'env contenant le JSON)
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON"))
+SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def get_flow():
     return Flow.from_client_config(
         CLIENT_CONFIG,
         scopes=SCOPES,
-        redirect_uri=os.environ.get("REDIRECT_URI")
+        redirect_uri="https://test-ia-6i37.onrender.com/oauth2callback"
     )
-
-@app.route('/')
-def home():
-    return render_template('index.html')
 
 @app.route('/login')
 def login():
@@ -37,9 +28,12 @@ def login():
 
 @app.route('/oauth2callback')
 def oauth2callback():
+    state = session.get('state')
     flow = get_flow()
     flow.fetch_token(authorization_response=request.url)
     credentials = flow.credentials
+    
+    # Stocker les credentials en session
     session['credentials'] = {
         'token': credentials.token,
         'refresh_token': credentials.refresh_token,
@@ -50,21 +44,22 @@ def oauth2callback():
     }
     return redirect(url_for('page_agent'))
 
+def get_gmail_service():
+    if 'credentials' not in session:
+        raise Exception("Non authentifié")
+    creds = Credentials(**session['credentials'])
+    return build('gmail', 'v1', credentials=creds)
+
 @app.route('/agent')
 def page_agent():
-    if 'credentials' not in session:
+    try:
+        service = get_gmail_service()
+        # Ta logique existante ici...
+        return render_template('agent.html', historique=[])
+    except Exception as e:
         return redirect(url_for('login'))
-    
-    # Construction du service Gmail avec les creds en session
-    from google.oauth2.credentials import Credentials
-    creds = Credentials(**session['credentials'])
-    service = build('gmail', 'v1', credentials=creds)
-    
-    # Récupération mails (ton ancienne logique)
-    results = service.users().messages().list(userId='me', maxResults=5).execute()
-    # ... (Ajoute ta logique de récupération ici) ...
-    
-    return render_template('agent.html', historique=[]) 
+
+# ... le reste de ton code (chat_ia, etc.) reste identique ...
 
 @app.route('/chat', methods=['POST'])
 def chat_ia():
