@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, render_template
 import google.generativeai as genai
 import logging
 import os
+from datetime import datetime # <-- AJOUTE CETTE LIGNE
 
 app = Flask(__name__)
 
@@ -35,27 +36,34 @@ def chat_ia():
     data = request.get_json()
     message_utilisateur = data.get('message')
     
-    # Sécurisation et alignement avec ta variable 'historique' du HTML
+    # 1. On récupère la date exacte d'aujourd'hui
+    date_du_jour = datetime.now().strftime("%d/%m/%Y")
+    
+    # 2. Sécurisation des mails
     contexte_mails = ""
     if 'historique' in globals() and historique:
         for item in historique:
             contexte_mails += f"- Sujet: {item['sujet']} | Résumé: {item['resume']}\n"
     else:
-        contexte_mails = "Aucun e-mail dans la base de données pour le moment."
-    
-    # LE PROMPT RADICAL (Priorité absolue aux connaissances générales)
-    prompt_complet = f"""Tu es une IA généraliste d'élite, ultra-compétente et totalement libre d'utiliser l'ensemble de tes connaissances mondiales (code, culture, logique, explications, etc.).
+        contexte_mails = "Aucun e-mail dans la base."
 
-Tu as également accès à cette liste de mails de l'utilisateur à titre purement informatif :
---- DÉBUT DES MAILS ---
+    # 3. LE PROMPT VERROUILLÉ
+    prompt_complet = f"""Tu es NZK_AGENT, une IA d'assistance experte.
+La date d'aujourd'hui est le {date_du_jour}. Tu dois toujours prendre cette date en compte.
+
+RÈGLE ABSOLUE 1 : CONNAISSANCES GÉNÉRALES
+Tu possèdes une vaste base de données mondiale (personnalités internet, histoire, code, etc.). Si on te pose une question générale, RÉPONDS DIRECTEMENT avec tes propres connaissances. 
+INTERDICTION FORMELLE : Si tu ne connais pas la réponse à une question générale, dis simplement "Je n'ai pas cette information", mais NE MENTIONNE JAMAIS la base de données d'e-mails pour te justifier.
+
+RÈGLE ABSOLUE 2 : LES E-MAILS
+Voici les e-mails récents de l'utilisateur :
+<emails>
 {contexte_mails}
---- FIN DES MAILS ---
+</emails>
+Tu ne dois lire et utiliser cette section <emails> QUE si l'utilisateur demande explicitement à lire ses mails, faire un résumé de ses messages, ou interroger sa boîte de réception. Dans tous les autres cas, fais comme si cette section n'existait pas.
 
-CONSIGNE DE RÉPONSE :
-Réponds à la demande de l'utilisateur ci-dessous. Utilise tes connaissances générales pour TOUT ce qui est code, questions générales ou requêtes hors-sujet. N'utilise les données de la section "MAILS" que si l'utilisateur y fait explicitement référence.
-
-Demande de l'utilisateur : {message_utilisateur}
-Réponse :"""
+COMMANDE UTILISATEUR :
+{message_utilisateur}"""
     
     try:
         reponse = model.generate_content(prompt_complet)
