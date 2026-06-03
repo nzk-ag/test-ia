@@ -6,6 +6,8 @@ from google.oauth2.credentials import Credentials
 import json
 # 1. IMPORTER PROXYFIX
 from werkzeug.middleware.proxy_fix import ProxyFix
+import os
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_tres_longue_et_fixe_a_ne_pas_changer_123456789")
