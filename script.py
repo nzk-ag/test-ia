@@ -175,19 +175,15 @@ def chat_ia():
     donnees = request.get_json()
     message_utilisateur = donnees.get('message', '')
     
+    if not message_utilisateur:
+        return jsonify({"reponse": "Je n'ai pas reçu de message."})
+    
     try:
-        # CORRECTION : Utilisation de la bonne variable globale 'model_ia'
-        # Ajout d'une consigne système à la volée pour forcer le ton de NZK_AGENT en français
-        prompt_systeme = f"""
-        Tu es NZK_AGENT, une IA intégrée à un tableau de bord de gestion d'e-mails. 
-        Réponds de manière concise, professionnelle et impérativement en français à la demande suivante :
+        # Appel à l'IA avec un prompt système pour personnaliser l'agent
+        prompt_systeme = "Tu es NZK_AGENT, un assistant personnel intelligent et efficace. Réponds de façon concise et stylée."
+        response = model.generate_content(f"{prompt_systeme} Message de l'utilisateur : {message_utilisateur}")
         
-        {message_utilisateur}
-        """
-        response = model_ia.generate_content(prompt_systeme)
-        reponse_ia = response.text.strip()
+        return jsonify({"reponse": response.text})
     except Exception as e:
-        print(f"!!! CRASH CHAT IA !!! : {str(e)}")
-        reponse_ia = "Erreur système. Connexion au réseau neuronal interrompue."
-        
-    return jsonify({"reponse": reponse_ia})
+        print(f"Erreur IA : {str(e)}")
+        return jsonify({"reponse": "Erreur système : Impossible de contacter le réseau neuronal."})
