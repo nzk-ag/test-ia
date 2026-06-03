@@ -3,70 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IA Automation - Accueil</title>
+    <title>Nzk_Agent - Tableau de bord</title>
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Poppins', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
 </head>
-<body class="bg-slate-950 text-black font-sans">
+<body class="bg-slate-950 text-slate-800 font-sans min-h-screen">
 
-    <nav class="flex items-center justify-between p-6 max-w-7xl mx-auto">
-        <div class="text-xl font-bold text-teal-300">Nzk_Agent</div>
-        <a href="#contact" class="bg-slate-950 text-teal-300 px-4 py-2 rounded-lg font-semibold hover:bg-slate-950 transition">Contact</a>
+    <nav class="bg-slate-950 border-b border-slate-800 p-4">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <a href="/" class="text-xl font-bold text-teal-300">Nzk_Agent</a>
+            <span class="text-slate-400 text-sm">Tableau de bord</span>
+        </div>
     </nav>
 
-    <section class="max-w-5xl mx-auto text-center px-6 py-20 sm:py-32">
-        <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight text-white balance">
-            Automatisez la gestion de vos e-mails grâce à <span class="text-teal-300">l'Intelligence Artificielle</span>
-        </h1>
-        <p class="mt-6 text-lg sm:text-xl text-white max-w-2xl mx-auto">
-            Gagnez des heures précieuses chaque jour. Notre solution trie, résume et prépare les réponses de vos messages importants de manière totalement autonome.
-        </p>
-        <div class="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="agent" class="bg-teal-600 text-white px-8 py-3 rounded-xl font-medium shadow-lg shadow-teal-50/40 hover:bg-teal-700/40 transition text-center">Accéder à l'agent</a>
-            <a href="#contact" class="border border-teal-300 text-white px-8 py-3 rounded-xl font-medium hover:bg-white transition text-center">Contactez-Nous</a>
+    <main class="max-w-4xl mx-auto p-6 mt-8">
+        
+        {% if not authenticated %}
+        <div class="text-center mt-20 p-10 bg-slate-900 rounded-xl border border-teal-500 shadow-xl">
+            <h2 class="text-2xl font-bold text-white mb-4">Accès sécurisé requis</h2>
+            <p class="text-slate-400 mb-6">Pour voir vos e-mails et discuter avec NZK_AGENT, connectez votre compte Google.</p>
+            <a href="{{ url_for('login') }}" class="inline-block bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold py-3 px-6 rounded-xl transition">
+                Se connecter avec Google
+            </a>
         </div>
-    </section>
 
-    <section id="agent" class="bg-white py-20 border-t border-slate-100">
-        <div class="max-w-7xl mx-auto px-6">
-            <h2 class="text-3xl font-bold text-center text-slate-900 mb-12">Pourquoi choisir notre solution ?</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div class="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div class="w-12 h-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl font-bold text-xl mb-4">⚡</div>
-                    <h3 class="text-xl font-semibold mb-2">Analyse Instantanée</h3>
-                    <p class="text-slate-600 text-sm leading-relaxed">Vos e-mails entrants sont analysés à la seconde près dès leur arrivée sur votre serveur.</p>
-                </div>
+        {% else %}
+        <h1 class="text-3xl font-bold text-teal-300 mb-8">Derniers e-mails traités</h1>
 
-                <div class="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div class="w-12 h-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl font-bold text-xl mb-4">🤖</div>
-                    <h3 class="text-xl font-semibold mb-2">Résumés par IA</h3>
-                    <p class="text-slate-600 text-sm leading-relaxed">Gemini extrait les informations clés et les requêtes urgentes pour vous éviter de tout lire.</p>
-                </div>
-
-                <div class="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div class="w-12 h-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl font-bold text-xl mb-4">🔌</div>
-                    <h3 class="text-xl font-semibold mb-2">Intégration Make</h3>
-                    <p class="text-slate-600 text-sm leading-relaxed">Une connexion native avec vos outils actuels pour automatiser vos réponses sans effort.</p>
+        <div class="space-y-6">
+            {% for item in historique %}
+            <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 shadow-sm hover:shadow-md transition">
+                <h2 class="text-lg font-bold text-white mb-2">Sujet : {{ item.sujet }}</h2>
+                <div class="bg-slate-800 text-slate-200 p-4 rounded-lg text-sm leading-relaxed border border-slate-700">
+                    {{ item.resume }}
                 </div>
             </div>
+            {% endfor %}
         </div>
-    </section>
+
+        <section class="mt-12 bg-slate-900 rounded-2xl border border-slate-700 shadow-sm overflow-hidden flex flex-col h-[500px]">
+            <div class="bg-slate-950 border-b border-slate-700 text-teal-300 p-4 font-bold flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]"></span>
+                Terminal NZK_AGENT // Interface de communication
+            </div>
+            
+            <div id="chat-box" class="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-950">
+                <div class="bg-slate-800 border border-slate-700 text-white p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm">
+                    Système en ligne. Je suis connecté à votre base de données. Que voulez-vous savoir sur vos derniers e-mails ?
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-950 border-t border-slate-800 flex gap-3">
+                <input type="text" id="chat-input" placeholder="Entrez votre commande..." 
+                    class="flex-1 bg-slate-800 text-white border border-slate-600 rounded-xl px-4 py-3 placeholder-slate-400 focus:outline-none focus:border-teal-300 focus:ring-1 focus:ring-teal-300 transition">
+                <button onclick="envoyerMessage()" 
+                    class="bg-teal-500 hover:bg-teal-400 text-slate-950 px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-teal-500/20">
+                    Envoyer
+                </button>
+            </div>
+        </section>
+        {% endif %}
+
+    </main>
 
 </body>
+<script>
+    async function envoyerMessage() {
+        const input = document.getElementById('chat-input');
+        const chatBox = document.getElementById('chat-box');
+        const message = input.value.trim();
+        if (message === '') return;
+
+        chatBox.innerHTML += `
+            <div class="bg-teal-500 text-slate-950 font-medium p-4 rounded-xl rounded-tr-none max-w-[85%] w-fit ml-auto shadow-md">
+                ${message}
+            </div>
+        `;
+        input.value = '';
+        
+        const idChargement = "chargement-" + Date.now();
+        chatBox.innerHTML += `<div id="${idChargement}" class="text-slate-400 text-sm italic mt-2 ml-2">NZK_AGENT analyse...</div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        try {
+            const reponseServeur = await fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            });
+            const data = await reponseServeur.json();
+            document.getElementById(idChargement).remove();
+            if (data.reponse) {
+                const texteFormate = data.reponse.replace(/\n/g, '<br>');
+                chatBox.innerHTML += `
+                    <div class="bg-slate-800 border border-slate-700 text-white p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm mt-2">
+                        ${texteFormate}
+                    </div>
+                `;
+            }
+        } catch (erreur) {
+            document.getElementById(idChargement).remove();
+            chatBox.innerHTML += `<div class="text-red-500 text-sm mt-2 ml-2">Erreur de connexion.</div>`;
+        }
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    document.getElementById('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') envoyerMessage(); });
+</script>
 </html>
