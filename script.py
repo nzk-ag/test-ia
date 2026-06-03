@@ -28,7 +28,7 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 # Initialisation de l'IA Google Gemini
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model_ia = genai.GenerativeModel('gemini-1.5-flash')
+model_ia = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 def get_flow():
     return Flow.from_client_config(
