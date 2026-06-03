@@ -28,11 +28,8 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 # Initialisation de l'IA Google Gemini
 model = genai.GenerativeModel(
-    model_name='gemini-2.5-flash-lite',
-    tools=[
-        # Ici, on donne la capacité de recherche web à l'IA
-        'google_search_retrieval' 
-    ]
+    model_name='gemini-2.5-flash',
+    tools=[{'google_search_retrieval': {}}]
 )
 
 def get_flow():
