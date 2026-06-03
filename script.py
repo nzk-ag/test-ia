@@ -28,35 +28,31 @@ def page_agent():
     return render_template('agent.html', historique=historique_resumes)
 
 @app.route('/chat', methods=['POST'])
-@app.route('/chat', methods=['POST'])
 def chat_ia():
     data = request.get_json()
     message_utilisateur = data.get('message')
     
-    # Préparation propre du contexte des e-mails
-    contexte_mails = "Aucun e-mail récent dans la base de données."
-    if historique_resumes:  # Modifie par 'historique' si c'est le nom de ta liste globale
-        contexte_mails = ""
-        for item in historique_resumes:
+    # Sécurisation et alignement avec ta variable 'historique' du HTML
+    contexte_mails = ""
+    if 'historique' in globals() and historique:
+        for item in historique:
             contexte_mails += f"- Sujet: {item['sujet']} | Résumé: {item['resume']}\n"
+    else:
+        contexte_mails = "Aucun e-mail dans la base de données pour le moment."
     
-    # LE PROMPT ULTRA-DIRECT (Aiguillage forcé)
-    prompt_complet = f"""Tu es NZK_AGENT, un assistant d'élite ultra-polyvalent. Tu es un expert absolu en développement, en infrastructure, en culture générale et en assistance business.
+    # LE PROMPT RADICAL (Priorité absolue aux connaissances générales)
+    prompt_complet = f"""Tu es une IA généraliste d'élite, ultra-compétente et totalement libre d'utiliser l'ensemble de tes connaissances mondiales (code, culture, logique, explications, etc.).
 
-Tu as deux sources d'informations distinctes :
-1. Ta propre base de connaissances globale (tu sais TOUT faire, coder, expliquer, inventer).
-2. Les données internes de l'utilisateur isolées dans la balise ci-dessous.
-
-<emails_recents>
+Tu as également accès à cette liste de mails de l'utilisateur à titre purement informatif :
+--- DÉBUT DES MAILS ---
 {contexte_mails}
-</emails_recents>
+--- FIN DES MAILS ---
 
-CONSIGNE CRITIQUE : 
-- Si la question de l'utilisateur concerne ses e-mails, utilise les données de la balise <emails_recents>.
-- Si la question porte sur N'IMPORTE QUEL AUTRE SUJET (demande de code, question générale, blague, etc.), ignore complètement la balise <emails_recents> et réponds en utilisant ton intelligence générale. Ne dis JAMAIS que tu n'as pas l'information dans les e-mails si la question n'a rien à voir avec eux.
+CONSIGNE DE RÉPONSE :
+Réponds à la demande de l'utilisateur ci-dessous. Utilise tes connaissances générales pour TOUT ce qui est code, questions générales ou requêtes hors-sujet. N'utilise les données de la section "MAILS" que si l'utilisateur y fait explicitement référence.
 
-Exécute la commande suivante reçue sur ton terminal :
-{message_utilisateur}"""
+Demande de l'utilisateur : {message_utilisateur}
+Réponse :"""
     
     try:
         reponse = model.generate_content(prompt_complet)
