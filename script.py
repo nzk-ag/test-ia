@@ -29,36 +29,74 @@ def get_flow():
     )
 
 # 1. Dans ta route /login
+import os
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+import json
+# 1. IMPORTER PROXYFIX
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_tres_longue_et_fixe_a_ne_pas_changer_123456789")
+
+# 2. APPLIQUER PROXYFIX À L'APPLICATION
+# Cela indique à Flask qu'il est derrière le proxy de Render et qu'il doit 
+# traiter les requêtes comme étant en HTTPS.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# 3. METTRE À JOUR LA CONFIGURATION DES COOKIES
+app.config.update(
+    SESSION_COOKIE_SECURE=True,    
+    SESSION_COOKIE_HTTPONLY=True,
+    # Changer 'Lax' en 'None' pour autoriser le cookie lors du retour depuis Google
+    SESSION_COOKIE_SAMESITE='None', 
+)
+
+CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON"))
+SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+def get_flow():
+    return Flow.from_client_config(
+        CLIENT_CONFIG,
+        scopes=SCOPES,
+        redirect_uri="https://test-ia-6i37.onrender.com/oauth2callback"
+    )
+
 @app.route('/login')
 def login():
-    flow = get_flow() # Ta fonction qui crée le flow
+    flow = get_flow()
     auth_url, state = flow.authorization_url(prompt='consent', access_type='offline')
-    session['state'] = state  # Sauvegarde pour vérification au retour
+    session['state'] = state
     return redirect(auth_url)
 
-# 2. Dans ta route /oauth2callback
 @app.route('/oauth2callback')
 def oauth2callback():
-    # Vérifie que la session est intacte
     if 'state' not in session:
         return "Session perdue, veuillez recommencer.", 400
         
     flow = get_flow()
-    flow.fetch_token(authorization_response=request.url)
     
-    # Stockage
+    # 4. SÉCURITÉ SUPPLÉMENTAIRE
+    # On s'assure de forcer le HTTPS dans l'URL de la requête, au cas où le proxy 
+    # laisserait passer un "http://" qui ferait planter la vérification OAuth.
+    authorization_response = request.url.replace('http://', 'https://')
+    
+    flow.fetch_token(authorization_response=authorization_response)
+    
     credentials = flow.credentials
     session['credentials'] = {
         'token': credentials.token,
         'refresh_token': credentials.refresh_token,
-        # ... autres champs
+        'token_uri': credentials.token_uri,
+        'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret,
+        'scopes': credentials.scopes
     }
     return redirect(url_for('page_agent'))
-def get_gmail_service():
-    if 'credentials' not in session:
-        raise Exception("Non authentifié")
-    creds = Credentials(**session['credentials'])
-    return build('gmail', 'v1', credentials=creds)
+
+# ... Le reste de votre code (get_gmail_service, page_agent, chat_ia) ...
 
 @app.route('/agent')
 def page_agent():
