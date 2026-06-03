@@ -1,5 +1,6 @@
 import os
 import json
+import base64
 import traceback
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from google_auth_oauthlib.flow import Flow
@@ -7,22 +8,31 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+# --- IMPORT IA (Exemple avec Google Gemini, ajuste selon ton modèle) ---
+# Si tu utilises OpenAI : import openai
+# Si tu utilises Anthropic : import anthropic
+from google import genai 
+
 # Forcer la tolérance du HTTP interne pour le proxy de Render
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_tres_longue_et_fixe_a_ne_pas_changer_123456789")
 
-# Configuration Proxy et Cookies indispensable pour les sessions sur Render
+# Configuration Proxy et Cookies pour Render
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config.update(
     SESSION_COOKIE_SECURE=True,    
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='None', # Changé à 'None' pour autoriser le retour de Google
+    SESSION_COOKIE_SAMESITE='None', 
 )
 
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "{}"))
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+# Initialisation du client IA (Utilise ta clé API définie dans tes variables d'environnement)
+# Assure-toi d'avoir ajouté GEMINI_API_KEY sur ton tableau de bord Render
+client_ia = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 def get_flow():
     return Flow.from_client_config(
@@ -37,23 +47,46 @@ def get_gmail_service():
     creds = Credentials(**session['credentials'])
     return build('gmail', 'v1', credentials=creds)
 
+def generer_resume_ia(sujet, expediteur, corps_texte):
+    """Demande à l'IA de nettoyer le texte et de générer un résumé strict en 2 phrases."""
+    try:
+        prompt = f"""
+        Tu es un assistant IA d'élite intégré à un tableau de bord. 
+        Analyse l'e-mail suivant et fais-en un résumé en exactement 2 phrases claires, professionnelles et bien structurées.
+        Élimine tout le bruit inutile (liens système, signatures répétitives, codes d'erreur bruts de serveurs comme Make/Render) pour ne garder que l'intention réelle du message.
+
+        DÉTAILS DE L'E-MAIL :
+        - Expéditeur : {expediteur}
+        - Sujet : {sujet}
+        - Contenu brut : {corps_texte}
+
+        RÉPONSE ATTENDUE : Uniquement les 2 phrases de résumé. Pas d'introduction, pas de fioritures.
+        """
+        
+        # Appel de l'IA (Ici avec gemini-2.5-flash, ultra rapide pour ça)
+        response = client_ia.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        return response.text.strip()
+    except Exception as ia_error:
+        print(f"Erreur lors de la génération du résumé par l'IA : {str(ia_error)}")
+        # En cas de panne de l'API IA, on retourne une version courte du texte de base pour ne pas faire crasher l'application
+        return corps_texte[:150] + "..."
+
 @app.route('/')
 def home():
-    # Si déjà connecté, on bascule directement sur l'agent
     if 'credentials' in session:
         return redirect(url_for('page_agent'))
-    # Sinon, on affiche la page agent avec le bloc de connexion
     return render_template('agent.html', authenticated=False)
 
 @app.route('/login')
 def login():
     flow = get_flow()
     auth_url, state = flow.authorization_url(prompt='consent', access_type='offline')
-    
     session['state'] = state
     if hasattr(flow, 'code_verifier'):
         session['code_verifier'] = flow.code_verifier
-        
     return redirect(auth_url)
 
 @app.route('/oauth2callback')
@@ -70,7 +103,6 @@ def oauth2callback():
             kwargs['code_verifier'] = session['code_verifier']
         
         flow.fetch_token(authorization_response=authorization_response, **kwargs)
-        
         session.pop('code_verifier', None)
         
         credentials = flow.credentials
@@ -86,19 +118,15 @@ def oauth2callback():
         
     except Exception as e:
         print(f"!!! CRASH OAUTH !!! : {str(e)}")
-        erreur_complete = traceback.format_exc()
-        return f"<h2>Le code a planté dans OAuth ! Voici pourquoi :</h2><pre>{erreur_complete}</pre>", 500
+        return f"<h2>Erreur OAuth !</h2><pre>{traceback.format_exc()}</pre>", 500
 
 @app.route('/agent')
 def page_agent():
-    # Si l'utilisateur n'est pas connecté, on montre l'écran d'accès sécurisé
     if 'credentials' not in session:
         return render_template('agent.html', authenticated=False)
 
     try:
         service = get_gmail_service()
-        
-        # Récupération des 10 derniers messages Gmail
         results = service.users().messages().list(userId='me', maxResults=10).execute()
         messages = results.get('messages', [])
         
@@ -106,11 +134,8 @@ def page_agent():
         
         if messages:
             for msg in messages:
-                # Cette fois, on demande le format 'full' pour avoir le corps du texte
                 msg_detail = service.users().messages().get(
-                    userId='me', 
-                    id=msg['id'], 
-                    format='full'
+                    userId='me', id=msg['id'], format='full'
                 ).execute()
                 
                 payload = msg_detail.get('payload', {})
@@ -120,37 +145,26 @@ def page_agent():
                 expediteur = "Inconnu"
                 
                 for header in headers:
-                    if header['name'] == 'Subject':
-                        sujet = header['value']
-                    if header['name'] == 'From':
-                        expediteur = header['value']
+                    if header['name'] == 'Subject': sujet = header['value']
+                    if header['name'] == 'From': expediteur = header['value']
                 
-                # --- RÉCUPÉRATION DU CONTENU TEXTE ---
-                # Option 1 : On prend le "snippet" (l'aperçu textuel automatique de Google, super propre)
-                texte_mail = msg_detail.get('snippet', '')
-                
-                # Option 2 (Sécurité) : Si le snippet est vide, on cherche dans les différentes parties du mail
-                if not texte_mail:
+                # Récupération du contenu brut pour l'envoyer à l'IA
+                texte_brut = msg_detail.get('snippet', '')
+                if not texte_brut:
                     parts = payload.get('parts', [])
                     if parts:
                         for part in parts:
                             if part['mimeType'] == 'text/plain':
                                 data = part['body'].get('data', '')
-                                texte_mail = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+                                texte_brut = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
                                 break
-                    else:
-                        data = payload.get('body', {}).get('data', '')
-                        if data:
-                            texte_mail = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
-
-                # Si le mail est trop long, on le coupe proprement pour ton interface
-                if len(texte_mail) > 300:
-                    texte_mail = texte_mail[:300] + "..."
+                
+                # APPEL DE L'IA POUR CRÉER LE RÉSUMÉ EN 2 PHRASES
+                resume_ia = generer_resume_ia(sujet, expediteur, texte_brut)
                         
-                # On assemble le tout pour l'envoyer au template agent.html
                 historique_mails.append({
                     'sujet': sujet,
-                    'resume': f"De : {expediteur} \n\n Message : {texte_mail}"
+                    'resume': resume_ia  # Contient uniquement les 2 phrases propres
                 })
                 
         return render_template('agent.html', authenticated=True, historique=historique_mails)
@@ -158,21 +172,4 @@ def page_agent():
     except Exception as e:
         if "invalid_grant" in str(e).lower() or "expired" in str(e).lower():
             session.pop('credentials', None)
-            return redirect(url_for('login', _scheme='https', _external=True))
-            
-        print(f"!!! CRASH DANS PAGE_AGENT !!! : {str(e)}")
-        erreur_complete = traceback.format_exc()
-        return f"<h2>Erreur lors de la récupération du texte des mails :</h2><pre>{erreur_complete}</pre>", 500
-@app.route('/chat', methods=['POST'])
-def chat_ia():
-    # Récupère le message envoyé depuis le terminal
-    donnees = request.get_json()
-    message_utilisateur = donnees.get('message', '')
-    
-    # Intègre ici ta logique d'IA. Pour l'instant, réponse automatique de test :
-    reponse_ia = f"J'ai bien reçu votre commande : '{message_utilisateur}'. L'analyse de vos e-mails est fonctionnelle !"
-    
-    return jsonify({"reponse": reponse_ia})
-
-if __name__ == '__main__':
-    app.run(port=5000)
+            return redirect(url_for('login', _scheme='https', _external
