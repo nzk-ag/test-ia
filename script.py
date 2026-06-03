@@ -28,7 +28,7 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 # Initialisation de l'IA Google Gemini
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model_ia = genai.GenerativeModel('gemini-2.5-flash-lite')
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 def get_flow():
     return Flow.from_client_config(
@@ -172,18 +172,19 @@ def page_agent():
 # --- CONFIGURATION ET CORRECTION DU CHAT IA ---
 @app.route('/chat', methods=['POST'])
 def chat_ia():
-    donnees = request.get_json()
-    message_utilisateur = donnees.get('message', '')
-    
-    if not message_utilisateur:
-        return jsonify({"reponse": "Je n'ai pas reçu de message."})
-    
     try:
-        # Appel à l'IA avec un prompt système pour personnaliser l'agent
-        prompt_systeme = "Tu es NZK_AGENT, un assistant personnel intelligent et efficace. Réponds de façon concise et stylée."
-        response = model.generate_content(f"{prompt_systeme} Message de l'utilisateur : {message_utilisateur}")
+        data = request.get_json()
+        user_message = data.get('message', '')
         
+        if not user_message:
+            return jsonify({"reponse": "Tu n'as rien écrit !"}), 400
+
+        # Instructions système pour donner une personnalité à ton agent
+        prompt = f"Tu es NZK_AGENT, un assistant personnel efficace. Réponds de façon concise. Question : {user_message}"
+        
+        response = model.generate_content(prompt)
         return jsonify({"reponse": response.text})
+        
     except Exception as e:
-        print(f"Erreur IA : {str(e)}")
-        return jsonify({"reponse": "Erreur système : Impossible de contacter le réseau neuronal."})
+        print(f"ERREUR IA : {str(e)}")
+        return jsonify({"reponse": "Désolé, le réseau neuronal est temporairement indisponible."}), 500
