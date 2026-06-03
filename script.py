@@ -174,24 +174,10 @@ def chat_ia():
     message_utilisateur = donnees.get('message', '')
     
     try:
-        # Prompt système pour donner un caractère à l'IA
-        contexte = f"""
-        Tu es NZK_AGENT, l'intelligence artificielle personnelle d'Ange (alias Nzk).
-        Ange est étudiant en BTS SIO SISR (réseaux et systèmes) et également artiste rap.
-        Ton rôle est de l'assister de manière précise, technique, mais avec un style direct et efficace.
-        Réponds directement à sa requête ci-dessous sans t'étaler, de façon stylée.
-        
-        Requête de Ange : {message_utilisateur}
-        """
-        
-        response = model_ia.generate_content(contexte)
-        reponse_ia = response.text.strip()
-        
+        # Appel réel à l'IA
+        response = model.generate_content(message_utilisateur)
+        reponse_ia = response.text
     except Exception as e:
-        print(f"Erreur API Chat : {str(e)}")
         reponse_ia = "Erreur système. Connexion au réseau neuronal interrompue."
         
     return jsonify({"reponse": reponse_ia})
-
-if __name__ == '__main__':
-    app.run(port=5000)
