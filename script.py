@@ -39,7 +39,12 @@ def get_gmail_service():
 
 @app.route('/')
 def home():
-    return render_template('index.html')
+    # Si l'utilisateur est déjà connecté, on le redirige directement vers l'agent
+    if 'credentials' in session:
+        return redirect(url_for('page_agent'))
+    
+    # Sinon, on affiche la page d'accueil avec le bouton "Se connecter"
+    return render_template('index.html', connecte=False)
 
 @app.route('/login')
 def login():
@@ -87,51 +92,39 @@ def oauth2callback():
 
 @app.route('/agent')
 def page_agent():
-    # Si l'utilisateur n'est pas connecté, on l'envoie vers Google
+    # Si pas connecté, direction le login Google
     if 'credentials' not in session:
         return redirect(url_for('login', _scheme='https', _external=True))
 
     try:
         service = get_gmail_service()
-        
-        # Récupération des 10 derniers messages
         results = service.users().messages().list(userId='me', maxResults=10).execute()
         messages = results.get('messages', [])
         
         mails_a_afficher = []
-        
         if messages:
             for msg in messages:
                 msg_detail = service.users().messages().get(
-                    userId='me', 
-                    id=msg['id'], 
-                    format='metadata', 
-                    metadataHeaders=['Subject', 'From']
+                    userId='me', id=msg['id'], format='metadata', metadataHeaders=['Subject', 'From']
                 ).execute()
                 
                 headers = msg_detail.get('payload', {}).get('headers', [])
                 sujet = "Sans sujet"
                 expediteur = "Inconnu"
-                
                 for header in headers:
-                    if header['name'] == 'Subject':
-                        sujet = header['value']
-                    if header['name'] == 'From':
-                        expediteur = header['value']
+                    if header['name'] == 'Subject': sujet = header['value']
+                    if header['name'] == 'From': expediteur = header['value']
                         
                 mails_a_afficher.append({'sujet': sujet, 'expediteur': expediteur})
                 
-        return render_template('agent.html', historique=[], mails=mails_a_afficher)
+        # Crucial : On passe "connecte=True" et la liste des mails au template
+        return render_template('index.html', connecte=True, historique=[], mails=mails_a_afficher)
         
     except Exception as e:
-        # En cas de token expiré ou révoqué, on nettoie et on reconnecte
         if "invalid_grant" in str(e).lower() or "expired" in str(e).lower():
             session.pop('credentials', None)
             return redirect(url_for('login', _scheme='https', _external=True))
-            
-        print(f"!!! CRASH DANS PAGE_AGENT !!! : {str(e)}")
-        erreur_complete = traceback.format_exc()
-        return f"<h2>Erreur lors de la récupération des mails :</h2><pre>{erreur_complete}</pre>", 500
+        return f"<h2>Erreur : {str(e)}</h2>", 500
 
 @app.route('/chat', methods=['POST'])
 def chat_ia():
