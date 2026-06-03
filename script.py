@@ -36,33 +36,31 @@ def chat_ia():
     data = request.get_json()
     message_utilisateur = data.get('message')
     
-    # 1. On récupère la date exacte d'aujourd'hui
+    # 1. Date dynamique pour éviter le blocage en 2024
     date_du_jour = datetime.now().strftime("%d/%m/%Y")
     
-    # 2. Sécurisation des mails
+    # 2. CORRECTION DU BUG : On utilise la vraie variable 'historique_resumes'
     contexte_mails = ""
-    if 'historique' in globals() and historique:
-        for item in historique:
+    if historique_resumes:  # <-- C'est ce nom exact qu'il fallait utiliser !
+        for item in historique_resumes:
             contexte_mails += f"- Sujet: {item['sujet']} | Résumé: {item['resume']}\n"
     else:
-        contexte_mails = "Aucun e-mail dans la base."
+        contexte_mails = "Aucun e-mail dans la base de données pour le moment."
 
-    # 3. LE PROMPT VERROUILLÉ
-    prompt_complet = f"""Tu es NZK_AGENT, une IA d'assistance experte.
-La date d'aujourd'hui est le {date_du_jour}. Tu dois toujours prendre cette date en compte.
+    # 3. LE PROMPT INFAILLIBLE
+    prompt_complet = f"""Tu es NZK_AGENT, une intelligence artificielle généraliste et ultra-compétente.
+La date d'aujourd'hui est le {date_du_jour}.
 
-RÈGLE ABSOLUE 1 : CONNAISSANCES GÉNÉRALES
-Tu possèdes une vaste base de données mondiale (personnalités internet, histoire, code, etc.). Si on te pose une question générale, RÉPONDS DIRECTEMENT avec tes propres connaissances. 
-INTERDICTION FORMELLE : Si tu ne connais pas la réponse à une question générale, dis simplement "Je n'ai pas cette information", mais NE MENTIONNE JAMAIS la base de données d'e-mails pour te justifier.
+RÈGLE 1 : LES CONNAISSANCES GÉNÉRALES
+Tu as accès à toutes tes connaissances mondiales (code, culture, etc.). Réponds directement aux questions de l'utilisateur. Si une question concerne un événement trop récent en 2026 que tu ne connais pas, dis simplement "Je n'ai pas cette information", mais ne parle JAMAIS de la base d'e-mails pour te justifier.
 
-RÈGLE ABSOLUE 2 : LES E-MAILS
-Voici les e-mails récents de l'utilisateur :
-<emails>
+RÈGLE 2 : LES E-MAILS DE L'UTILISATEUR
+Tu as accès aux e-mails extraits ci-dessous. Utilise-les UNIQUEMENT si l'utilisateur te pose une question sur ses messages, sur les personnes qui lui ont écrit (comme LonniSaint), ou sur son actualité récente.
+<emails_recents>
 {contexte_mails}
-</emails>
-Tu ne dois lire et utiliser cette section <emails> QUE si l'utilisateur demande explicitement à lire ses mails, faire un résumé de ses messages, ou interroger sa boîte de réception. Dans tous les autres cas, fais comme si cette section n'existait pas.
+</emails_recents>
 
-COMMANDE UTILISATEUR :
+QUESTION DE L'UTILISATEUR :
 {message_utilisateur}"""
     
     try:
