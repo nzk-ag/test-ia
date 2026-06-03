@@ -29,28 +29,36 @@ def page_agent():
 
 @app.route('/chat', methods=['POST'])
 def chat_ia():
-    # 1. On récupère le message envoyé par le site web
     data = request.get_json()
     message_utilisateur = data.get('message')
     
-    # 2. On prépare le contexte (la mémoire des mails)
-    contexte_mails = "Voici l'historique des derniers mails reçus :\n"
-    for item in historique_resumes:
-        contexte_mails += f"- Sujet: {item['sujet']} | Résumé: {item['resume']}\n"
+    # On prépare toujours le contexte
+    contexte_mails = "Aucun e-mail récent."
+    if historique_resumes:
+        contexte_mails = ""
+        for item in historique_resumes:
+            contexte_mails += f"- Sujet: {item['sujet']} | Résumé: {item['resume']}\n"
     
-    # 3. On crée un "Super Prompt" invisible pour l'utilisateur
-    prompt_complet = f"""Tu es NZK_AGENT, un assistant IA. 
-    Tu as accès aux derniers mails de l'utilisateur ci-dessous :
-    {contexte_mails}
-    
-    Réponds de manière claire et concise à la question suivante de l'utilisateur (si la question ne concerne pas les mails, réponds normalement) :
-    Question : {message_utilisateur}"""
+    # LE NOUVEAU SUPER PROMPT (Beaucoup plus polyvalent)
+    prompt_complet = f"""Tu es NZK_AGENT, une intelligence artificielle polyvalente et experte.
+
+RÈGLES DE TON SYSTÈME :
+1. Tu es capable de répondre à n'importe quelle question (code, culture générale, rédaction, mathématiques, etc.) en utilisant tes propres connaissances.
+2. Tu disposes également d'une "mémoire" temporaire contenant les derniers e-mails de l'utilisateur.
+
+MÉMOIRE TEMPORAIRE (E-mails récents) :
+{contexte_mails}
+
+INSTRUCTION :
+L'utilisateur te demande : "{message_utilisateur}"
+
+Si la demande concerne les e-mails, utilise la MÉMOIRE TEMPORAIRE pour répondre.
+Si la demande porte sur n'importe quel autre sujet, ignore les e-mails et utilise tes connaissances générales pour fournir la meilleure réponse possible.
+"""
     
     try:
-        # 4. On interroge Gemini
+        # On interroge Gemini avec ces nouvelles règles strictes
         reponse = model.generate_content(prompt_complet)
-        
-        # 5. On renvoie la réponse au site web au format JSON
         return jsonify({"reponse": reponse.text}), 200
         
     except Exception as e:
