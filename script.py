@@ -27,6 +27,35 @@ def page_agent():
     # On affiche une nouvelle page HTML en lui passant notre mémoire Python
     return render_template('agent.html', historique=historique_resumes)
 
+@app.route('/chat', methods=['POST'])
+def chat_ia():
+    # 1. On récupère le message envoyé par le site web
+    data = request.get_json()
+    message_utilisateur = data.get('message')
+    
+    # 2. On prépare le contexte (la mémoire des mails)
+    contexte_mails = "Voici l'historique des derniers mails reçus :\n"
+    for item in historique_resumes:
+        contexte_mails += f"- Sujet: {item['sujet']} | Résumé: {item['resume']}\n"
+    
+    # 3. On crée un "Super Prompt" invisible pour l'utilisateur
+    prompt_complet = f"""Tu es NZK_AGENT, un assistant IA. 
+    Tu as accès aux derniers mails de l'utilisateur ci-dessous :
+    {contexte_mails}
+    
+    Réponds de manière claire et concise à la question suivante de l'utilisateur (si la question ne concerne pas les mails, réponds normalement) :
+    Question : {message_utilisateur}"""
+    
+    try:
+        # 4. On interroge Gemini
+        reponse = model.generate_content(prompt_complet)
+        
+        # 5. On renvoie la réponse au site web au format JSON
+        return jsonify({"reponse": reponse.text}), 200
+        
+    except Exception as e:
+        return jsonify({"erreur": str(e)}), 500
+
 @app.route('/recevoir-mail', methods=['POST'])
 def recevoir_mail():
     sujet = request.form.get('sujet')
