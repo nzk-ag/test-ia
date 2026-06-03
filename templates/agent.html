@@ -69,7 +69,7 @@
 
         // 1. Afficher le message de l'utilisateur (bulle à droite)
         chatBox.innerHTML += `
-            <div class="bg-indigo-600 text-white p-4 rounded-xl rounded-tr-none max-w-[85%] w-fit ml-auto shadow-md">
+            <div class="bg-teal-500 text-slate-950 font-medium p-4 rounded-xl rounded-tr-none max-w-[85%] w-fit ml-auto shadow-md">
                 ${message}
             </div>
         `;
@@ -105,7 +105,7 @@
                 // On remplace les sauts de ligne invisibles par des vrais retours à la ligne HTML (<br>)
                 const texteFormate = data.reponse.replace(/\n/g, '<br>');
                 chatBox.innerHTML += `
-                    <div class="bg-white border border-slate-200 text-slate-800 p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm mt-2">
+                    <div class="bg-slate-800 border border-slate-700 text-white p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm mt-2">
                         ${texteFormate}
                     </div>
                 `;
