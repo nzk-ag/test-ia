@@ -3,7 +3,30 @@ import google.generativeai as genai
 import logging
 import os
 from datetime import datetime # <-- AJOUTE CETTE LIGNE
+import base64
 
+def get_latest_emails(service):
+    # On récupère les 5 derniers messages
+    results = service.users().messages().list(userId='me', maxResults=5).execute()
+    messages = results.get('messages', [])
+    
+    liste_emails = []
+    
+    for msg in messages:
+        # On récupère le contenu détaillé
+        message = service.users().messages().get(userId='me', id=msg['id']).execute()
+        
+        # Extraction du sujet
+        headers = message['payload']['headers']
+        sujet = next((h['value'] for h in headers if h['name'] == 'Subject'), "Sans objet")
+        
+        # Extraction du contenu (snippet)
+        snippet = message.get('snippet', 'Pas de contenu')
+        
+        liste_emails.append({'sujet': sujet, 'resume': snippet})
+        
+    return liste_emails
+    
 app = Flask(__name__)
 
 historique_resumes = []
@@ -28,8 +51,15 @@ def home():
 
 @app.route('/agent')
 def page_agent():
-    # On affiche une nouvelle page HTML en lui passant notre mémoire Python
-    return render_template('agent.html', historique=historique_resumes)
+    try:
+        # On utilise ton service Gmail pour récupérer les vrais mails
+        service = get_gmail_service()
+        historique_reels = get_latest_emails(service)
+    except Exception as e:
+        print(f"Erreur lors de la récupération des mails : {e}")
+        historique_reels = []
+        
+    return render_template('agent.html', historique=historique_reels)
 
 @app.route('/chat', methods=['POST'])
 def chat_ia():
