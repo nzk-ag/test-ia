@@ -6,7 +6,16 @@ from google.oauth2.credentials import Credentials
 import json
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_secrete_tres_compl")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_tres_longue_et_fixe_a_ne_pas_changer_123456789")
+
+# 2. CONFIGURATION DES COOKIES (CRUCIAL POUR RENDER)
+# Render utilise HTTPS, donc le cookie doit être 'Secure' et 'Lax' pour passer 
+# lors de la redirection depuis Google.
+app.config.update(
+    SESSION_COOKIE_SECURE=True,    
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax', 
+)
 
 # Configuration OAuth (Utilise la variable d'env contenant le JSON)
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON"))
