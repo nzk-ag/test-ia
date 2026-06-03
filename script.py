@@ -1,29 +1,25 @@
 import os
 import json
-import traceback  # Indispensable pour afficher les erreurs
+import traceback
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-# Tolérance pour le proxy interne de Render
+# Forcer la tolérance du HTTP interne pour le proxy de Render
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_tres_longue_et_fixe_a_ne_pas_changer_123456789")
 
-# Configuration Proxy et Cookies pour Render (HTTPS)
+# Configuration indispensable pour les sessions derrière le proxy Render
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config.update(
     SESSION_COOKIE_SECURE=True,    
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='None', 
 )
-
-@app.route('/')
-def home():
-    return render_template('index.html')
 
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "{}"))
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
@@ -36,11 +32,14 @@ def get_flow():
     )
 
 def get_gmail_service():
-    """Crée et retourne le service API Gmail à partir des identifiants en session."""
     if 'credentials' not in session:
         raise Exception("Non authentifié")
     creds = Credentials(**session['credentials'])
     return build('gmail', 'v1', credentials=creds)
+
+@app.route('/')
+def home():
+    return render_template('index.html')
 
 @app.route('/login')
 def login():
@@ -79,9 +78,64 @@ def oauth2callback():
             'client_secret': credentials.client_secret,
             'scopes': credentials.scopes
         }
-        # Redirection sécurisée vers l'agent
         return redirect(url_for('page_agent', _scheme='https', _external=True))
         
     except Exception as e:
         print(f"!!! CRASH OAUTH !!! : {str(e)}")
         erreur_complete = traceback.format_exc()
+        return f"<h2>Le code a planté dans OAuth ! Voici pourquoi :</h2><pre>{erreur_complete}</pre>", 500
+
+@app.route('/agent')
+def page_agent():
+    # Si l'utilisateur n'est pas connecté, on l'envoie vers Google
+    if 'credentials' not in session:
+        return redirect(url_for('login', _scheme='https', _external=True))
+
+    try:
+        service = get_gmail_service()
+        
+        # Récupération des 10 derniers messages
+        results = service.users().messages().list(userId='me', maxResults=10).execute()
+        messages = results.get('messages', [])
+        
+        mails_a_afficher = []
+        
+        if messages:
+            for msg in messages:
+                msg_detail = service.users().messages().get(
+                    userId='me', 
+                    id=msg['id'], 
+                    format='metadata', 
+                    metadataHeaders=['Subject', 'From']
+                ).execute()
+                
+                headers = msg_detail.get('payload', {}).get('headers', [])
+                sujet = "Sans sujet"
+                expediteur = "Inconnu"
+                
+                for header in headers:
+                    if header['name'] == 'Subject':
+                        sujet = header['value']
+                    if header['name'] == 'From':
+                        expediteur = header['value']
+                        
+                mails_a_afficher.append({'sujet': sujet, 'expediteur': expediteur})
+                
+        return render_template('agent.html', historique=[], mails=mails_a_afficher)
+        
+    except Exception as e:
+        # En cas de token expiré ou révoqué, on nettoie et on reconnecte
+        if "invalid_grant" in str(e).lower() or "expired" in str(e).lower():
+            session.pop('credentials', None)
+            return redirect(url_for('login', _scheme='https', _external=True))
+            
+        print(f"!!! CRASH DANS PAGE_AGENT !!! : {str(e)}")
+        erreur_complete = traceback.format_exc()
+        return f"<h2>Erreur lors de la récupération des mails :</h2><pre>{erreur_complete}</pre>", 500
+
+@app.route('/chat', methods=['POST'])
+def chat_ia():
+    return jsonify({"reponse": "Message reçu"})
+
+if __name__ == '__main__':
+    app.run(port=5000)
