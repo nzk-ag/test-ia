@@ -32,12 +32,13 @@
             {{ item.resume }}
         </div>
     </div>
-    {% endfor %} </div> ```
+    {% endfor %} <!-- C'EST LÀ QUE LA BOUCLE DOIT SE FERMER -->
+</div>
 
-#### 2. Supprimer l'ancien `{% endfor %}` tout en bas
+#### 2. Supprimer l'ancien  tout en bas
 Maintenant, descends tout en bas de ton fichier `agent.html` (juste avant la balise `<script>`, comme sur ton `image_e59cbd.png`). 
 
-Tu vas y trouver l'ancien `{% endfor %}` qui traîne. **Supprime-le** pour obtenir cette structure épurée :
+Tu vas y trouver l'ancien  qui traîne. **Supprime-le** pour obtenir cette structure épurée :
 
 ```html
     </section> </div> </main>
