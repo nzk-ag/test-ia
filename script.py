@@ -6,7 +6,7 @@ from google.oauth2.credentials import Credentials
 import json
 # 1. IMPORTER PROXYFIX
 from werkzeug.middleware.proxy_fix import ProxyFix
-import os
+
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
@@ -43,10 +43,13 @@ def get_flow():
 def login():
     flow = get_flow()
     auth_url, state = flow.authorization_url(prompt='consent', access_type='offline')
+    
+    # 1. On sauvegarde le state ET le code_verifier s'il existe
     session['state'] = state
+    if hasattr(flow, 'code_verifier'):
+        session['code_verifier'] = flow.code_verifier
+        
     return redirect(auth_url)
-
-import traceback  # À ajouter en haut de ton fichier ou dans la fonction
 
 @app.route('/oauth2callback')
 def oauth2callback():
@@ -55,12 +58,18 @@ def oauth2callback():
         
     try:
         flow = get_flow()
-        
-        # Force le HTTPS pour éviter les blocages d'Oauthlib
         authorization_response = request.url.replace('http://', 'https://')
         
-        # C'est généralement cette ligne qui provoque la 500 si l'échange échoue
-        flow.fetch_token(authorization_response=authorization_response)
+        # 2. On récupère le code_verifier stocké pour le transmettre à fetch_token
+        kwargs = {}
+        if 'code_verifier' in session:
+            kwargs['code_verifier'] = session['code_verifier']
+        
+        # On passe les arguments dynamiquement à fetch_token
+        flow.fetch_token(authorization_response=authorization_response, **kwargs)
+        
+        # 3. Nettoyage de la session après succès
+        session.pop('code_verifier', None)
         
         credentials = flow.credentials
         session['credentials'] = {
@@ -74,10 +83,7 @@ def oauth2callback():
         return redirect(url_for('page_agent'))
         
     except Exception as e:
-        # 1. Ça va écrire l'erreur dans les logs de Render
         print(f"!!! CRASH OAUTH !!! : {str(e)}")
-        
-        # 2. Ça va afficher le rapport de bug complet sur ton écran à la place de l'erreur 500
         erreur_complete = traceback.format_exc()
         return f"<h2>Le code a planté ! Voici pourquoi :</h2><pre>{erreur_complete}</pre>", 500
 
