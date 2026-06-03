@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
 import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshol
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 # Forcer la tolérance du HTTP interne pour le proxy de Render
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
