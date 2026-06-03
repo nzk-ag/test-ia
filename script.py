@@ -7,11 +7,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
-
-# --- IMPORT IA (Exemple avec Google Gemini, ajuste selon ton modèle) ---
-# Si tu utilises OpenAI : import openai
-# Si tu utilises Anthropic : import anthropic
-from google import genai 
+import google.generativeai as genai
 
 # Forcer la tolérance du HTTP interne pour le proxy de Render
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -30,9 +26,9 @@ app.config.update(
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "{}"))
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
-# Initialisation du client IA (Utilise ta clé API définie dans tes variables d'environnement)
-# Assure-toi d'avoir ajouté GEMINI_API_KEY sur ton tableau de bord Render
-client_ia = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+# Initialisation de l'IA Google Gemini
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+model_ia = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_flow():
     return Flow.from_client_config(
@@ -51,33 +47,26 @@ def generer_resume_ia(sujet, expediteur, corps_texte):
     """Demande à l'IA de nettoyer le texte et de générer un résumé strict en 2 phrases."""
     try:
         prompt = f"""
-        Tu es un assistant IA d'élite intégré à un tableau de bord. 
-        Analyse l'e-mail suivant et fais-en un résumé en exactement 2 phrases claires, professionnelles et bien structurées.
-        Élimine tout le bruit inutile (liens système, signatures répétitives, codes d'erreur bruts de serveurs comme Make/Render) pour ne garder que l'intention réelle du message.
+        Tu es NZK_AGENT. Analyse l'e-mail suivant et fais-en un résumé en exactement 2 phrases claires et structurées.
+        Élimine tout le bruit inutile (liens, signatures, codes d'erreur bruts) pour ne garder que l'intention réelle du message.
 
         DÉTAILS DE L'E-MAIL :
         - Expéditeur : {expediteur}
         - Sujet : {sujet}
         - Contenu brut : {corps_texte}
 
-        RÉPONSE ATTENDUE : Uniquement les 2 phrases de résumé. Pas d'introduction, pas de fioritures.
+        RÉPONSE ATTENDUE : Uniquement les 2 phrases de résumé.
         """
-        
-        # Appel de l'IA (Ici avec gemini-2.5-flash, ultra rapide pour ça)
-        response = client_ia.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
+        response = model_ia.generate_content(prompt)
         return response.text.strip()
     except Exception as ia_error:
-        print(f"Erreur lors de la génération du résumé par l'IA : {str(ia_error)}")
-        # En cas de panne de l'API IA, on retourne une version courte du texte de base pour ne pas faire crasher l'application
+        print(f"Erreur Résumé IA : {str(ia_error)}")
         return corps_texte[:150] + "..."
 
 @app.route('/')
 def home():
     if 'credentials' in session:
-        return redirect(url_for('page_agent'))
+        return redirect(url_for('page_agent', _scheme='https', _external=True))
     return render_template('agent.html', authenticated=False)
 
 @app.route('/login')
@@ -114,6 +103,7 @@ def oauth2callback():
             'client_secret': credentials.client_secret,
             'scopes': credentials.scopes
         }
+        # CORRECTION DE LA PARENTHÈSE ICI
         return redirect(url_for('page_agent', _scheme='https', _external=True))
         
     except Exception as e:
@@ -148,7 +138,6 @@ def page_agent():
                     if header['name'] == 'Subject': sujet = header['value']
                     if header['name'] == 'From': expediteur = header['value']
                 
-                # Récupération du contenu brut pour l'envoyer à l'IA
                 texte_brut = msg_detail.get('snippet', '')
                 if not texte_brut:
                     parts = payload.get('parts', [])
@@ -159,12 +148,12 @@ def page_agent():
                                 texte_brut = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
                                 break
                 
-                # APPEL DE L'IA POUR CRÉER LE RÉSUMÉ EN 2 PHRASES
+                # Appel du résumé
                 resume_ia = generer_resume_ia(sujet, expediteur, texte_brut)
                         
                 historique_mails.append({
                     'sujet': sujet,
-                    'resume': resume_ia  # Contient uniquement les 2 phrases propres
+                    'resume': resume_ia
                 })
                 
         return render_template('agent.html', authenticated=True, historique=historique_mails)
@@ -172,4 +161,37 @@ def page_agent():
     except Exception as e:
         if "invalid_grant" in str(e).lower() or "expired" in str(e).lower():
             session.pop('credentials', None)
-            return redirect(url_for('login', _scheme='https', _external
+            return redirect(url_for('login', _scheme='https', _external=True))
+            
+        print(f"!!! CRASH DANS PAGE_AGENT !!! : {str(e)}")
+        return f"<h2>Erreur de traitement des e-mails</h2><pre>{traceback.format_exc()}</pre>", 500
+
+
+# --- NOUVELLE LOGIQUE DU CHAT IA ---
+@app.route('/chat', methods=['POST'])
+def chat_ia():
+    donnees = request.get_json()
+    message_utilisateur = donnees.get('message', '')
+    
+    try:
+        # Prompt système pour donner un caractère à l'IA
+        contexte = f"""
+        Tu es NZK_AGENT, l'intelligence artificielle personnelle d'Ange (alias Nzk).
+        Ange est étudiant en BTS SIO SISR (réseaux et systèmes) et également artiste rap.
+        Ton rôle est de l'assister de manière précise, technique, mais avec un style direct et efficace.
+        Réponds directement à sa requête ci-dessous sans t'étaler, de façon stylée.
+        
+        Requête de Ange : {message_utilisateur}
+        """
+        
+        response = model_ia.generate_content(contexte)
+        reponse_ia = response.text.strip()
+        
+    except Exception as e:
+        print(f"Erreur API Chat : {str(e)}")
+        reponse_ia = "Erreur système. Connexion au réseau neuronal interrompue."
+        
+    return jsonify({"reponse": reponse_ia})
+
+if __name__ == '__main__':
+    app.run(port=5000)
