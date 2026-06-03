@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import google.generativeai as genai
 import logging
 
@@ -15,6 +15,10 @@ genai.configure(api_key=GOOGLE_API_KEY)
 
 # 2. Initialisation du modèle
 model = genai.GenerativeModel('gemini-2.5-flash-lite')
+
+@app.route('/')
+def home():
+    return render_template('index.html')
 
 @app.route('/recevoir-mail', methods=['POST'])
 def recevoir_mail():
