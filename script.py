@@ -4,6 +4,8 @@ import logging
 
 app = Flask(__name__)
 
+historique_resumes = []
+    
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 # Optionnel : désactiver totalement les logs
@@ -20,6 +22,11 @@ model = genai.GenerativeModel('gemini-2.5-flash-lite')
 def home():
     return render_template('index.html')
 
+@app.route('/agent')
+def page_agent():
+    # On affiche une nouvelle page HTML en lui passant notre mémoire Python
+    return render_template('agent.html', historique=historique_resumes)
+
 @app.route('/recevoir-mail', methods=['POST'])
 def recevoir_mail():
     sujet = request.form.get('sujet')
@@ -32,6 +39,11 @@ def recevoir_mail():
     try:
         prompt = f"Résume ce mail de manière concise. En sachant que le destinataire c'est moi et que les gens qui envoient des mails je ne les connais pas et que tu me parles comme un assistant du quotidien. Sujet: {sujet}. Contenu: {contenu}"
         reponse = model.generate_content(prompt) # Utilisation directe de model
+
+        historique_resumes.append({
+            "sujet": sujet,
+            "resume": reponse.text
+        })
         
         print(f"--- Résumé généré ---")
         print(reponse.text)
