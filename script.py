@@ -6,7 +6,7 @@ from google.oauth2.credentials import Credentials
 import json
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_secrete_aleatoire")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_secrete_tres_complexe")
 
 # Configuration OAuth (Utilise la variable d'env contenant le JSON)
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON"))
