@@ -44,10 +44,13 @@ def get_gmail_service():
     return build('gmail', 'v1', credentials=creds)
 
 def generer_resume_ia(sujet, expediteur, corps_texte):
-    """Demande à l'IA de nettoyer le texte et de générer un résumé strict en 2 phrases."""
+    """Demande à l'IA de nettoyer le texte et de générer un résumé strict en français."""
     try:
         prompt = f"""
         Tu es NZK_AGENT. Analyse l'e-mail suivant et fais-en un résumé en exactement 2 phrases claires et structurées.
+        
+        CONSIGNE ABSOLUE : Tu dois OBLIGATOIREMENT rédiger le résumé en français, même si l'e-mail d'origine, le sujet ou l'expéditeur sont en anglais.
+        
         Élimine tout le bruit inutile (liens, signatures, codes d'erreur bruts) pour ne garder que l'intention réelle du message.
 
         DÉTAILS DE L'E-MAIL :
@@ -55,7 +58,7 @@ def generer_resume_ia(sujet, expediteur, corps_texte):
         - Sujet : {sujet}
         - Contenu brut : {corps_texte}
 
-        RÉPONSE ATTENDUE : Uniquement les 2 phrases de résumé.
+        RÉPONSE ATTENDUE : Uniquement les 2 phrases de résumé en français, rien d'autre.
         """
         response = model_ia.generate_content(prompt)
         return response.text.strip()
@@ -103,7 +106,6 @@ def oauth2callback():
             'client_secret': credentials.client_secret,
             'scopes': credentials.scopes
         }
-        # CORRECTION DE LA PARENTHÈSE ICI
         return redirect(url_for('page_agent', _scheme='https', _external=True))
         
     except Exception as e:
@@ -148,7 +150,7 @@ def page_agent():
                                 texte_brut = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
                                 break
                 
-                # Appel du résumé
+                # Appel du résumé personnalisé
                 resume_ia = generer_resume_ia(sujet, expediteur, texte_brut)
                         
                 historique_mails.append({
@@ -167,17 +169,25 @@ def page_agent():
         return f"<h2>Erreur de traitement des e-mails</h2><pre>{traceback.format_exc()}</pre>", 500
 
 
-# --- NOUVELLE LOGIQUE DU CHAT IA ---
+# --- CONFIGURATION ET CORRECTION DU CHAT IA ---
 @app.route('/chat', methods=['POST'])
 def chat_ia():
     donnees = request.get_json()
     message_utilisateur = donnees.get('message', '')
     
     try:
-        # Appel réel à l'IA
-        response = model.generate_content(message_utilisateur)
-        reponse_ia = response.text
+        # CORRECTION : Utilisation de la bonne variable globale 'model_ia'
+        # Ajout d'une consigne système à la volée pour forcer le ton de NZK_AGENT en français
+        prompt_systeme = f"""
+        Tu es NZK_AGENT, une IA intégrée à un tableau de bord de gestion d'e-mails. 
+        Réponds de manière concise, professionnelle et impérativement en français à la demande suivante :
+        
+        {message_utilisateur}
+        """
+        response = model_ia.generate_content(prompt_systeme)
+        reponse_ia = response.text.strip()
     except Exception as e:
+        print(f"!!! CRASH CHAT IA !!! : {str(e)}")
         reponse_ia = "Erreur système. Connexion au réseau neuronal interrompue."
         
     return jsonify({"reponse": reponse_ia})
