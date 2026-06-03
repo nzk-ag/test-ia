@@ -27,6 +27,7 @@ CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "{}"))
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 # Initialisation de l'IA Google Gemini
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel(
     model_name='gemini-2.5-flash',
     tools=[{'google_search_retrieval': {}}]
@@ -177,16 +178,17 @@ def chat_ia():
     donnees = request.get_json()
     message_utilisateur = donnees.get('message', '')
     
-    # Préparation du contexte : si l'utilisateur veut ses mails, 
-    # tu pourrais ici appeler une fonction qui lit Gmail et l'injecte dans le prompt
-    prompt = f"""Tu es NZK_AGENT. Tu as accès à la recherche Google. 
-    Réponds de façon concise et stylée à Ange.
-    Question : {message_utilisateur}"""
+    if not message_utilisateur:
+        return jsonify({"reponse": "Je n'ai pas reçu de message."})
     
     try:
-        # Gemini utilisera l'outil de recherche automatiquement si besoin
-        response = model.generate_content(prompt)
+        # Utilisation de 'model' (si tu as renommé l'initialisation en model)
+        # ou 'model_ia' selon ton instance
+        prompt_systeme = "Tu es NZK_AGENT, un assistant personnel intelligent et efficace. Réponds de façon concise et stylée."
+        response = model.generate_content(f"{prompt_systeme} Message de l'utilisateur : {message_utilisateur}")
+        
         return jsonify({"reponse": response.text})
     except Exception as e:
-        print(f"ERREUR IA : {str(e)}")
-        return jsonify({"reponse": "Erreur lors de la connexion au réseau."})
+        # Cette trace s'affichera dans les logs Render pour te permettre de voir l'erreur exacte
+        print(f"Erreur IA : {traceback.format_exc()}")
+        return jsonify({"reponse": "Erreur système : Impossible de contacter le réseau neuronal."})
