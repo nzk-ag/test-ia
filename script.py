@@ -28,12 +28,17 @@ def login():
 
 @app.route('/oauth2callback')
 def oauth2callback():
+    # 1. Récupérer l'état de la session
     state = session.get('state')
+    if not state:
+        return "Session perdue, veuillez vous reconnecter.", 400
+
+    # 2. Reconstruire le flow
     flow = get_flow()
     flow.fetch_token(authorization_response=request.url)
+
+    # 3. Sauvegarder les credentials
     credentials = flow.credentials
-    
-    # Stocker les credentials en session
     session['credentials'] = {
         'token': credentials.token,
         'refresh_token': credentials.refresh_token,
