@@ -13,12 +13,12 @@ os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_tres_longue_et_fixe_a_ne_pas_changer_123456789")
 
-# Configuration indispensable pour les sessions derrière le proxy Render
+# Configuration Proxy et Cookies indispensable pour les sessions sur Render
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config.update(
     SESSION_COOKIE_SECURE=True,    
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='None', 
+    SESSION_COOKIE_SAMESITE='None', # Changé à 'None' pour autoriser le retour de Google
 )
 
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "{}"))
@@ -39,12 +39,11 @@ def get_gmail_service():
 
 @app.route('/')
 def home():
-    # Si l'utilisateur est déjà connecté, on le redirige directement vers l'agent
+    # Si déjà connecté, on bascule directement sur l'agent
     if 'credentials' in session:
         return redirect(url_for('page_agent'))
-    
-    # Sinon, on affiche la page d'accueil avec le bouton "Se connecter"
-    return render_template('index.html', connecte=False)
+    # Sinon, on affiche la page agent avec le bloc de connexion
+    return render_template('agent.html', authenticated=False)
 
 @app.route('/login')
 def login():
@@ -92,43 +91,65 @@ def oauth2callback():
 
 @app.route('/agent')
 def page_agent():
-    # Si pas connecté, direction le login Google
+    # Si pas connecté, on montre le bouton de connexion (ou redirige vers /login selon préférence)
     if 'credentials' not in session:
-        return redirect(url_for('login', _scheme='https', _external=True))
+        return render_template('agent.html', authenticated=False)
 
     try:
         service = get_gmail_service()
+        
+        # Récupération des 10 derniers messages Gmail
         results = service.users().messages().list(userId='me', maxResults=10).execute()
         messages = results.get('messages', [])
         
-        mails_a_afficher = []
+        historique_mails = []
+        
         if messages:
             for msg in messages:
                 msg_detail = service.users().messages().get(
-                    userId='me', id=msg['id'], format='metadata', metadataHeaders=['Subject', 'From']
+                    userId='me', 
+                    id=msg['id'], 
+                    format='metadata', 
+                    metadataHeaders=['Subject', 'From']
                 ).execute()
                 
                 headers = msg_detail.get('payload', {}).get('headers', [])
                 sujet = "Sans sujet"
                 expediteur = "Inconnu"
-                for header in headers:
-                    if header['name'] == 'Subject': sujet = header['value']
-                    if header['name'] == 'From': expediteur = header['value']
-                        
-                mails_a_afficher.append({'sujet': sujet, 'expediteur': expediteur})
                 
-        # Crucial : On passe "connecte=True" et la liste des mails au template
-        return render_template('index.html', connecte=True, historique=[], mails=mails_a_afficher)
+                for header in headers:
+                    if header['name'] == 'Subject':
+                        sujet = header['value']
+                    if header['name'] == 'From':
+                        expediteur = header['value']
+                        
+                # On utilise la structure attendue par ton HTML : sujet et resume (qui affiche l'expéditeur ici)
+                historique_mails.append({
+                    'sujet': sujet,
+                    'resume': f"Reçu de : {expediteur}"
+                })
+                
+        return render_template('agent.html', authenticated=True, historique=historique_mails)
         
     except Exception as e:
         if "invalid_grant" in str(e).lower() or "expired" in str(e).lower():
             session.pop('credentials', None)
             return redirect(url_for('login', _scheme='https', _external=True))
-        return f"<h2>Erreur : {str(e)}</h2>", 500
+            
+        print(f"!!! CRASH DANS PAGE_AGENT !!! : {str(e)}")
+        erreur_complete = traceback.format_exc()
+        return f"<h2>Erreur lors de la récupération des mails :</h2><pre>{erreur_complete}</pre>", 500
 
 @app.route('/chat', methods=['POST'])
 def chat_ia():
-    return jsonify({"reponse": "Message reçu"})
+    # Récupère le message envoyé depuis le terminal
+    donnees = request.get_json()
+    message_utilisateur = donnees.get('message', '')
+    
+    # Intègre ici ta logique d'IA. Pour l'instant, réponse automatique de test :
+    reponse_ia = f"J'ai bien reçu votre commande : '{message_utilisateur}'. L'analyse de vos e-mails est fonctionnelle !"
+    
+    return jsonify({"reponse": reponse_ia})
 
 if __name__ == '__main__':
     app.run(port=5000)
