@@ -24,7 +24,8 @@ def get_flow():
     return Flow.from_client_config(
         CLIENT_CONFIG,
         scopes=SCOPES,
-        redirect_uri=os.environ.get("REDIRECT_URI", "http://localhost:5000/oauth2callback")
+        # On va chercher la valeur dans les variables d'environnement
+        redirect_uri=os.environ.get("REDIRECT_URI") 
     )
 
 def get_gmail_service():
