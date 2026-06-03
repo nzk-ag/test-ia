@@ -37,4 +37,74 @@
     </main>
 
 </body>
+<script>
+    // Fonction qui s'exécute quand on clique sur "Envoyer"
+    async function envoyerMessage() {
+        const input = document.getElementById('chat-input');
+        const chatBox = document.getElementById('chat-box');
+        const message = input.value.trim();
+
+        if (message === '') return; // Ne rien faire si c'est vide
+
+        // 1. Afficher le message de l'utilisateur (bulle à droite)
+        chatBox.innerHTML += `
+            <div class="bg-indigo-600 text-white p-4 rounded-xl rounded-tr-none max-w-[85%] w-fit ml-auto shadow-md">
+                ${message}
+            </div>
+        `;
+        input.value = ''; // Vider la barre de texte
+        
+        // Créer un identifiant unique pour le message de chargement
+        const idChargement = "chargement-" + Date.now();
+        
+        // Afficher l'indicateur de réflexion de l'IA
+        chatBox.innerHTML += `
+            <div id="${idChargement}" class="text-slate-400 text-sm italic mt-2 ml-2">
+                NZK_AGENT analyse la requête...
+            </div>
+        `;
+        // Scroller automatiquement tout en bas
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        // 2. Envoyer la donnée au serveur Flask en arrière-plan
+        try {
+            const reponseServeur = await fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message }) // On convertit en JSON
+            });
+            
+            const data = await reponseServeur.json();
+            
+            // Supprimer le texte "NZK_AGENT analyse..."
+            document.getElementById(idChargement).remove();
+
+            // 3. Afficher la vraie réponse de l'IA (bulle à gauche)
+            if (data.reponse) {
+                // On remplace les sauts de ligne invisibles par des vrais retours à la ligne HTML (<br>)
+                const texteFormate = data.reponse.replace(/\n/g, '<br>');
+                chatBox.innerHTML += `
+                    <div class="bg-white border border-slate-200 text-slate-800 p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm mt-2">
+                        ${texteFormate}
+                    </div>
+                `;
+            } else {
+                chatBox.innerHTML += `<div class="text-red-500 text-sm mt-2 ml-2">Erreur système : ${data.erreur}</div>`;
+            }
+        } catch (erreur) {
+            document.getElementById(idChargement).remove();
+            chatBox.innerHTML += `<div class="text-red-500 text-sm mt-2 ml-2">Connexion au serveur perdue.</div>`;
+        }
+        
+        // Refaire un scroll vers le bas après la réponse
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // Bonus : Permettre d'envoyer le message en appuyant sur la touche "Entrée"
+    document.getElementById('chat-input').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            envoyerMessage();
+        }
+    });
+</script>
 </html>
