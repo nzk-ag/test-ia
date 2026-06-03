@@ -25,13 +25,22 @@
         {% endif %}
 
         <div class="space-y-6">
-            {% for item in historique %}
-            <div class="bg-slate-950 p-6 rounded-xl border border-white shadow-sm hover:shadow-md transition">
-                <h2 class="text-lg font-bold text-white mb-2">Sujet : {{ item.sujet }}</h2>
-                <div class="bg-slate-800 text-white p-4 rounded-lg text-sm leading-relaxed">
-                    {{ item.resume }}
-                </div>
-            </div>
+    {% for item in historique %}
+    <div class="bg-slate-950 p-6 rounded-xl border border-white shadow-sm hover:shadow-md transition">
+        <h2 class="text-lg font-bold text-white mb-2">Sujet : {{ item.sujet }}</h2>
+        <div class="bg-slate-800 text-white p-4 rounded-lg text-sm leading-relaxed">
+            {{ item.resume }}
+        </div>
+    </div>
+    {% endfor %} </div> ```
+
+#### 2. Supprimer l'ancien `{% endfor %}` tout en bas
+Maintenant, descends tout en bas de ton fichier `agent.html` (juste avant la balise `<script>`, comme sur ton `image_e59cbd.png`). 
+
+Tu vas y trouver l'ancien `{% endfor %}` qui traîne. **Supprime-le** pour obtenir cette structure épurée :
+
+```html
+    </section> </div> </main>
             <section class="mt-12 bg-slate-950 rounded-2xl border border-white shadow-sm overflow-hidden flex flex-col h-[500px]">
     <div class="bg-slate-900 border-b border-white text-teal-300 p-4 font-bold flex items-center gap-2">
         <span class="w-2 h-2 rounded-full bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]"></span>
@@ -53,7 +62,6 @@
         </button>
     </div>
 </section>
-            {% endfor %}
         </div>
     </main>
 
