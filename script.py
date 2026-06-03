@@ -21,11 +21,11 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON"))
 
 def get_flow():
+    # ... ton code de chargement client_config ...
     return Flow.from_client_config(
-        CLIENT_CONFIG,
-        scopes=SCOPES,
-        # On va chercher la valeur dans les variables d'environnement
-        redirect_uri=os.environ.get("REDIRECT_URI") 
+        client_config,
+        scopes=['https://www.googleapis.com/auth/gmail.readonly'],
+        redirect_uri=os.environ.get("REDIRECT_URI") # C'est ici que la variable est utilisée
     )
 
 def get_gmail_service():
