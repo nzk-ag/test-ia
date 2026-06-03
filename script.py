@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
 import google.generativeai as genai
-
+from google.generativeai.types import HarmCategory, HarmBlockThreshol
 # Forcer la tolérance du HTTP interne pour le proxy de Render
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
@@ -27,8 +27,13 @@ CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "{}"))
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 # Initialisation de l'IA Google Gemini
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-2.5-flash')
+model = genai.GenerativeModel(
+    model_name='gemini-2.5-flash-lite',
+    tools=[
+        # Ici, on donne la capacité de recherche web à l'IA
+        'google_search_retrieval' 
+    ]
+)
 
 def get_flow():
     return Flow.from_client_config(
@@ -172,19 +177,16 @@ def page_agent():
 # --- CONFIGURATION ET CORRECTION DU CHAT IA ---
 @app.route('/chat', methods=['POST'])
 def chat_ia():
-    try:
-        data = request.get_json()
-        user_message = data.get('message', '')
-        
-        if not user_message:
-            return jsonify({"reponse": "Tu n'as rien écrit !"}), 400
+    donnees = request.get_json()
+    message_utilisateur = donnees.get('message', '')
 
-        # Instructions système pour donner une personnalité à ton agent
-        prompt = f"Tu es NZK_AGENT, un assistant personnel efficace. Réponds de façon concise. Question : {user_message}"
-        
-        response = model.generate_content(prompt)
+    # 1. Récupération des données mails (si nécessaire pour le contexte)
+    # Tu peux appeler une fonction qui lit tes 5 derniers mails ici 
+    # et les injecte dans le prompt si l'utilisateur demande "résume mes mails"
+    
+    try:
+        # L'IA utilisera automatiquement l'outil de recherche si elle en a besoin
+        response = model.generate_content(message_utilisateur)
         return jsonify({"reponse": response.text})
-        
     except Exception as e:
-        print(f"ERREUR IA : {str(e)}")
-        return jsonify({"reponse": "Désolé, le réseau neuronal est temporairement indisponible."}), 500
+        return jsonify({"reponse": "Erreur de connexion aux sources de données."})
