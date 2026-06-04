@@ -88,19 +88,26 @@
             btn.className = "w-full py-2.5 px-4 bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed rounded-xl text-sm font-medium text-center";
 
             try {
+                // Décodage du brouillon généré par l'IA
                 const emailData = JSON.parse(decodeURIComponent(escape(atob(dataB64))));
-                const response = await fetch('/send_email', {
+                
+                // Appel de ta route backend propre '/envoyer_mail'
+                const response = await fetch('/envoyer_mail', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(emailData)
+                    body: JSON.stringify({
+                        destinataire: emailData.to || emailData.destinataire,
+                        sujet: emailData.subject || emailData.sujet,
+                        contenu: emailData.body || emailData.contenu
+                    })
                 });
                 const result = await response.json();
                 
-                if (result.success) {
+                if (result.succes || result.success) {
                     btn.innerText = "✨ Envoyé avec succès !";
                     btn.className = "w-full py-2.5 px-4 bg-emerald-950 border border-emerald-500/30 text-emerald-400 font-bold rounded-xl text-sm text-center shadow-lg shadow-emerald-500/5";
                 } else {
-                    throw new Error(result.error);
+                    throw new Error(result.erreur || result.error);
                 }
             } catch (err) {
                 console.error(err);
@@ -181,7 +188,7 @@
 
                     if (texteBrut) {
                         let texteFormate = texteBrut.replace(/\n/g, '<br>');
-                        texteFormate = texteFormate.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                        texteFormate = texteFormate.replace(/\*\*(.*?)\*\"/g, '<strong>$1</strong>');
                         chatBox.innerHTML += `
                             <div class="bg-slate-800 border border-slate-700 text-white p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm mt-2">
                                 ${texteFormate}
