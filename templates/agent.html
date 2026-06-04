@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nzk_Agent - Tableau de bord</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen">
 
+    <!-- Barre de Navigation -->
     <nav class="bg-slate-950 border-b border-slate-800 p-4">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
             <a href="/" class="text-xl font-bold text-teal-300 tracking-wider">NZK_AGENT</a>
@@ -23,6 +24,7 @@
     <main class="max-w-7xl mx-auto p-4 lg:p-6 mt-4">
         
         {% if not authenticated %}
+        <!-- Écran de Connexion -->
         <div class="text-center mt-20 max-w-md mx-auto p-8 bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl">
             <div class="w-12 h-12 bg-teal-950 border border-teal-500/30 rounded-xl flex items-center justify-center mx-auto mb-4 text-teal-400 font-bold text-xl">NZ</div>
             <h2 class="text-xl font-bold text-white mb-2">Accès sécurisé requis</h2>
@@ -33,8 +35,10 @@
         </div>
 
         {% else %}
+        <!-- Interface Principale en Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
+            <!-- Colonne Gauche : Historique & Résumés -->
             <div class="lg:col-span-5 space-y-4">
                 <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
                     <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Flux Récent & Résumés IA</h3>
@@ -51,18 +55,22 @@
                 </div>
             </div>
 
+            <!-- Colonne Droite : Terminal Chat IA -->
             <div class="lg:col-span-7 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl h-[calc(100vh-140px)]">
+                <!-- En-tête Terminal -->
                 <div class="p-4 border-b border-slate-800 flex items-center gap-2">
                     <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                     <span class="text-sm font-medium text-slate-300">Console de commande NZK_AGENT</span>
                 </div>
 
+                <!-- Zone d'affichage des messages -->
                 <div id="chat-box" class="flex-1 p-4 overflow-y-auto space-y-3 text-sm flex flex-col">
                     <div class="bg-slate-800 border border-slate-700 text-slate-200 p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm">
                         Bonjour ! Je suis connecté à votre boîte de réception. Je peux analyser vos messages ou rédiger des réponses à votre place. Que souhaitez-vous faire ?
                     </div>
                 </div>
 
+                <!-- Barre d'input -->
                 <div class="p-4 border-t border-slate-800 bg-slate-900/50 rounded-b-2xl">
                     <div class="flex gap-2">
                         <input type="text" id="chat-input" placeholder="Demandez une action (ex: Réponds au mail 1 pour dire oui...)" 
@@ -78,8 +86,8 @@
         {% endif %}
     </main>
 
+    <!-- INTERPRÉTEUR DE BROUILLONS & ACTION GMAIL -->
     <script>
-        // Permet la transmission du mail au backend via le bouton de confirmation
         async function envoyerBrouillon(dataB64, idBouton) {
             const btn = document.getElementById(idBouton);
             if (!btn) return;
@@ -89,15 +97,12 @@
             btn.className = "w-full py-2.5 px-4 bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed rounded-xl text-sm font-medium text-center";
 
             try {
-                // Décodage sécurisé de la chaîne UTF-8 passée en base64
                 const emailData = JSON.parse(decodeURIComponent(escape(atob(dataB64))));
-                
                 const response = await fetch('/send_email', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(emailData)
                 });
-                
                 const result = await response.json();
                 
                 if (result.success) {
@@ -122,7 +127,6 @@
             const message = input.value.trim();
             if (!message) return;
 
-            // Rendu visuel immédiat du message utilisateur
             chatBox.innerHTML += `
                 <div class="bg-teal-400 text-slate-950 p-4 rounded-xl rounded-tr-none max-w-[85%] w-fit ml-auto font-medium shadow-md mt-2">
                     ${message}
@@ -140,7 +144,6 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: message })
                 });
-                
                 const data = await response.json();
                 document.getElementById(idLoader).remove();
 
@@ -148,24 +151,20 @@
                     let texteBrut = data.reponse;
                     let blocBrouillonHtml = '';
 
-                    // Recherche du bloc d'envoi généré par l'IA
                     const regexDraft = /<DRAFT>([\s\S]*?)<\/DRAFT>/i;
                     const match = texteBrut.match(regexDraft);
 
                     if (match) {
                         texteBrut = texteBrut.replace(regexDraft, '').trim();
                         try {
-                            // Nettoyage des backticks markdown si l'IA en a ajouté par réflexe
                             let jsonNettoye = match[1].trim();
                             jsonNettoye = jsonNettoye.replace(/```json/g, '').replace(/```/g, '').trim();
                             
                             const donneesMail = JSON.parse(jsonNettoye);
                             const idUniqueBtn = "btn-" + Date.now();
-                            
                             const strMail = JSON.stringify(donneesMail);
                             const b64Mail = btoa(unescape(encodeURIComponent(strMail)));
 
-                            // Template de la boîte d'action avec le bouton de validation demandé
                             blocBrouillonHtml = `
                                 <div class="mt-2 p-4 bg-slate-950 border border-teal-500/20 rounded-2xl text-slate-200 shadow-xl max-w-[85%] w-full border-l-4 border-l-teal-400 space-y-3">
                                     <div class="flex items-center justify-between border-b border-slate-900 pb-2">
@@ -182,14 +181,13 @@
                                 </div>
                             `;
                         } catch (errJson) {
-                            console.error("Format JSON invalide dans les balises DRAFT:", errJson);
+                            console.error("Erreur de parsing du bloc DRAFT:", errJson);
                         }
                     }
 
-                    // Affichage du texte conversationnel de l'agent
                     if (texteBrut) {
                         let texteFormate = texteBrut.replace(/\n/g, '<br>');
-                        texteFormate = texteFormate.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Interprétation simple du gras
+                        texteFormate = texteFormate.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
                         chatBox.innerHTML += `
                             <div class="bg-slate-800 border border-slate-700 text-white p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm mt-2">
                                 ${texteFormate}
@@ -197,7 +195,6 @@
                         `;
                     }
 
-                    // Insertion de la boîte de validation si présente
                     if (blocBrouillonHtml) {
                         chatBox.innerHTML += blocBrouillonHtml;
                     }
