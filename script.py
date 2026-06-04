@@ -71,9 +71,10 @@ def generer_resume_ia(sujet, expediteur, corps_texte):
 
 @app.route('/')
 def home():
-    if 'credentials' in session:
-        return redirect(url_for('page_agent', _scheme='https', _external=True))
-    return render_template('agent.html', authenticated=False)
+    return render_template('agent.html', authenticated=True) # Mettre à True pour tester sans OAuth
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
 
 @app.route('/login')
 def login():
@@ -175,20 +176,19 @@ def page_agent():
 # --- CONFIGURATION ET CORRECTION DU CHAT IA ---
 @app.route('/chat', methods=['POST'])
 def chat_ia():
-    donnees = request.get_json()
-    message_utilisateur = donnees.get('message', '')
-    
-    if not message_utilisateur:
-        return jsonify({"reponse": "Je n'ai pas reçu de message."})
-    
     try:
-        # Utilisation de 'model' (si tu as renommé l'initialisation en model)
-        # ou 'model_ia' selon ton instance
-        prompt_systeme = "Tu es NZK_AGENT, un assistant personnel intelligent et efficace. Réponds de façon concise et stylée."
-        response = model.generate_content(f"{prompt_systeme} Message de l'utilisateur : {message_utilisateur}")
+        data = request.get_json()
+        user_message = data.get('message', '')
         
+        if not user_message:
+            return jsonify({"reponse": "Tu n'as rien écrit !"}), 400
+
+        # Instructions système pour donner une personnalité à ton agent
+        prompt = f"Tu es NZK_AGENT, un assistant personnel efficace. Réponds de façon concise. Question : {user_message}"
+        
+        response = model.generate_content(prompt)
         return jsonify({"reponse": response.text})
+        
     except Exception as e:
-        # Cette trace s'affichera dans les logs Render pour te permettre de voir l'erreur exacte
-        print(f"Erreur IA : {traceback.format_exc()}")
-        return jsonify({"reponse": "Erreur système : Impossible de contacter le réseau neuronal."})
+        print(f"ERREUR IA : {str(e)}")
+        return jsonify({"reponse": "Désolé, le réseau neuronal est temporairement indisponible."}), 500
