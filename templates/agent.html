@@ -6,198 +6,215 @@
     <title>Nzk_Agent - Tableau de bord</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-950 text-slate-800 font-sans min-h-screen">
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen">
 
     <nav class="bg-slate-950 border-b border-slate-800 p-4">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <a href="/" class="text-xl font-bold text-teal-300">Nzk_Agent</a>
+            <a href="/" class="text-xl font-bold text-teal-300 tracking-wider">NZK_AGENT</a>
             <div class="flex items-center gap-4">
-                <span class="text-slate-400 text-sm hidden md:block">Tableau de bord</span>
+                <span class="text-slate-400 text-sm">Tableau de contrôle</span>
                 {% if authenticated %}
-                <a href="/logout" class="text-xs bg-slate-800 hover:bg-red-500 hover:text-white text-slate-300 px-3 py-1 rounded transition">Déconnexion</a>
+                <a href="/logout" class="text-xs bg-red-950 text-red-400 border border-red-900 px-3 py-1.5 rounded-lg hover:bg-red-900 hover:text-white transition">Déconnexion</a>
                 {% endif %}
             </div>
         </div>
     </nav>
 
-    <main class="max-w-4xl mx-auto p-6 mt-8">
+    <main class="max-w-7xl mx-auto p-4 lg:p-6 mt-4">
         
         {% if not authenticated %}
-        <div class="text-center mt-20 p-10 bg-slate-900 rounded-xl border border-teal-500 shadow-xl">
-            <h2 class="text-2xl font-bold text-white mb-4">Accès sécurisé requis</h2>
-            <p class="text-slate-400 mb-6">Pour voir vos e-mails, discuter avec NZK_AGENT et utiliser l'envoi automatisé, connectez votre compte Google.</p>
-            <a href="/login" class="inline-block bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold py-3 px-6 rounded-xl transition">
+        <div class="text-center mt-20 max-w-md mx-auto p-8 bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl">
+            <div class="w-12 h-12 bg-teal-950 border border-teal-500/30 rounded-xl flex items-center justify-center mx-auto mb-4 text-teal-400 font-bold text-xl">NZ</div>
+            <h2 class="text-xl font-bold text-white mb-2">Accès sécurisé requis</h2>
+            <p class="text-slate-400 text-sm mb-6">Connectez votre compte de messagerie Google pour activer l'analyse des e-mails et les capacités de réponse automatique de l'agent.</p>
+            <a href="/login" class="inline-flex items-center justify-center w-full py-3 px-4 bg-teal-400 hover:bg-teal-500 text-slate-950 font-bold rounded-xl transition shadow-lg shadow-teal-500/10">
                 Se connecter avec Google
             </a>
         </div>
 
         {% else %}
-        <h1 class="text-3xl font-bold text-teal-300 mb-8">Derniers e-mails traités</h1>
-
-        <div class="space-y-6">
-            {% for item in historique %}
-            <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 shadow-sm hover:shadow-md transition">
-                <h2 class="text-lg font-bold text-white mb-2">Sujet : {{ item.sujet }}</h2>
-                <div class="bg-slate-800 text-slate-200 p-4 rounded-lg text-sm leading-relaxed border border-slate-700">
-                    {{ item.resume }}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <section class="mt-12 bg-slate-900 rounded-2xl border border-slate-700 shadow-sm overflow-hidden flex flex-col h-[600px]">
-            <div class="bg-slate-950 border-b border-slate-700 text-teal-300 p-4 font-bold flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-teal-400 animate-pulse shadow-[0_0_8px_rgba(45,212,191,0.8)]"></span>
-                Terminal NZK_AGENT // Interface de communication et de réponse
-            </div>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
-            <div id="chat-box" class="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-950">
-                <div class="bg-slate-800 border border-slate-700 text-white p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm">
-                    Système en ligne. Je suis connecté à votre boîte de réception. Posez-moi des questions sur vos e-mails ou demandez-moi de générer une réponse.
+            <div class="lg:col-span-5 space-y-4">
+                <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
+                    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Flux Récent & Résumés IA</h3>
+                    <div class="space-y-3 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+                        {% for mail in historique %}
+                        <div class="p-3.5 bg-slate-900 border border-slate-800/80 rounded-xl hover:border-slate-700 transition">
+                            <h4 class="text-sm font-semibold text-teal-300 line-clamp-1 mb-1">{{ mail.sujet }}</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">{{ mail.resume }}</p>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-8 text-slate-500 text-sm">Aucun e-mail trouvé dans votre boîte de réception.</div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
 
-            <div class="p-4 bg-slate-950 border-t border-slate-800 flex gap-3">
-                <input type="text" id="chat-input" placeholder="Ex: Réponds à l'email de John pour lui dire oui..." 
-                    class="flex-1 bg-slate-800 text-white border border-slate-600 rounded-xl px-4 py-3 placeholder-slate-400 focus:outline-none focus:border-teal-300 focus:ring-1 focus:ring-teal-300 transition">
-                <button onclick="envoyerMessage()" 
-                    class="bg-teal-500 hover:bg-teal-400 text-slate-950 px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-teal-500/20">
-                    Envoyer
-                </button>
-            </div>
-        </section>
-        {% endif %}
+            <div class="lg:col-span-7 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl h-[calc(100vh-140px)]">
+                <div class="p-4 border-b border-slate-800 flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <span class="text-sm font-medium text-slate-300">Console de commande NZK_AGENT</span>
+                </div>
 
+                <div id="chat-box" class="flex-1 p-4 overflow-y-auto space-y-3 text-sm flex flex-col">
+                    <div class="bg-slate-800 border border-slate-700 text-slate-200 p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm">
+                        Bonjour ! Je suis connecté à votre boîte de réception. Je peux analyser vos messages ou rédiger des réponses à votre place. Que souhaitez-vous faire ?
+                    </div>
+                </div>
+
+                <div class="p-4 border-t border-slate-800 bg-slate-900/50 rounded-b-2xl">
+                    <div class="flex gap-2">
+                        <input type="text" id="chat-input" placeholder="Demandez une action (ex: Réponds au mail 1 pour dire oui...)" 
+                               class="flex-1 bg-slate-950 border border-slate-800 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-teal-500/50 transition placeholder-slate-600" />
+                        <button onclick="envoyerMessage()" class="px-5 bg-teal-400 hover:bg-teal-500 text-slate-950 font-bold rounded-xl text-sm transition shadow-md shadow-teal-500/5">
+                            Envoyer
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        {% endif %}
     </main>
 
-</body>
-<script>
-    // Fonction utilitaire pour éviter les failles XSS dans les attributs HTML
-    function escapeHtml(unsafe) {
-        return (unsafe || "").toString()
-             .replace(/&/g, "&amp;")
-             .replace(/</g, "&lt;")
-             .replace(/>/g, "&gt;")
-             .replace(/"/g, "&quot;")
-             .replace(/'/g, "&#039;");
-    }
+    <script>
+        // Fonction globale d'envoi de mail liée au bouton dynamique généré par l'IA
+        async function envoyerBrouillon(dataB64, idBouton) {
+            const btn = document.getElementById(idBouton);
+            if (!btn) return;
 
-    async function envoyerMessage() {
-        const input = document.getElementById('chat-input');
-        const chatBox = document.getElementById('chat-box');
-        const message = input.value.trim();
-        if (message === '') return;
+            // Verrouillage visuel du bouton pendant la requête
+            btn.disabled = true;
+            btn.innerText = "⏳ Transmission à Gmail en cours...";
+            btn.className = "w-full py-2.5 px-4 bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed rounded-xl text-sm font-medium text-center";
 
-        // Afficher le message de l'utilisateur
-        chatBox.innerHTML += `
-            <div class="bg-teal-500 text-slate-950 font-medium p-4 rounded-xl rounded-tr-none max-w-[85%] w-fit ml-auto shadow-md">
-                ${escapeHtml(message)}
-            </div>
-        `;
-        input.value = '';
-        
-        const idChargement = "chargement-" + Date.now();
-        chatBox.innerHTML += `<div id="${idChargement}" class="text-slate-400 text-sm italic mt-2 ml-2">NZK_AGENT analyse la boîte mail...</div>`;
-        chatBox.scrollTop = chatBox.scrollHeight;
-
-        try {
-            const reponseServeur = await fetch('/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: message })
-            });
-            const data = await reponseServeur.json();
-            document.getElementById(idChargement).remove();
-            
-            if (data.reponse) {
-                let texteAffiche = data.reponse;
-                let interfaceEnvoiHtml = '';
+            try {
+                // Décodage sûr de la chaîne Base64 contenant l'objet du mail
+                const emailData = JSON.parse(decodeURIComponent(escape(atob(dataB64))));
                 
-                // Détection de la balise DRAFT générée par l'IA
-                const draftRegex = /<DRAFT>([\s\S]*?)<\/DRAFT>/;
-                const match = texteAffiche.match(draftRegex);
+                const reponse = await fetch('/send_email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(emailData)
+                });
                 
-                if (match && match[1]) {
-                    // Retirer le JSON brut de la vue utilisateur
-                    texteAffiche = texteAffiche.replace(draftRegex, '').trim();
-                    
-                    try {
-                        const draftData = JSON.parse(match[1]);
-                        const btnId = 'btn-' + Date.now();
-                        
-                        // Générer l'UI du brouillon
-                        interfaceEnvoiHtml = `
-                            <div class="mt-4 p-4 bg-slate-900 border border-teal-500/50 rounded-xl w-full">
-                                <p class="text-xs text-teal-400 mb-2 uppercase tracking-wider font-bold">Action requise : Brouillon prêt</p>
-                                <p class="text-sm text-slate-300 mb-1"><strong>À :</strong> ${escapeHtml(draftData.to)}</p>
-                                <p class="text-sm text-slate-300 mb-3"><strong>Sujet :</strong> ${escapeHtml(draftData.subject)}</p>
-                                <div class="bg-slate-950 p-3 rounded-lg text-sm text-slate-300 mb-4 border border-slate-800">
-                                    ${escapeHtml(draftData.body).replace(/\n/g, '<br>')}
+                const resultat = await reponse.json();
+                
+                if (resultat.success) {
+                    btn.innerText = "✨ E-mail envoyé avec succès !";
+                    btn.className = "w-full py-2.5 px-4 bg-emerald-950 border border-emerald-500/30 text-emerald-400 font-bold rounded-xl text-sm text-center shadow-lg shadow-emerald-500/5";
+                } else {
+                    throw new Error(resultat.error || "Rejet du serveur SMTP");
+                }
+            } catch (err) {
+                console.error(err);
+                btn.disabled = false;
+                btn.innerText = "❌ Échec de l'envoi. Réessayer ?";
+                btn.className = "w-full py-2.5 px-4 bg-red-900 hover:bg-red-800 text-white font-bold rounded-xl text-sm text-center transition";
+            }
+        }
+
+        // Gestion de l'envoi des messages de chat
+        async function envoyerMessage() {
+            const input = document.getElementById('chat-input');
+            const chatBox = document.getElementById('chat-box');
+            if (!input || !chatBox) return;
+
+            const message = input.value.trim();
+            if (!message) return;
+
+            // Insertion graphique du message de l'utilisateur
+            chatBox.innerHTML += `
+                <div class="bg-teal-400 text-slate-950 p-4 rounded-xl rounded-tr-none max-w-[85%] w-fit ml-auto font-medium shadow-md mt-2">
+                    ${message}
+                </div>
+            `;
+            input.value = '';
+
+            // Écran de chargement temporaire
+            const idChargement = "loader-" + Date.now();
+            chatBox.innerHTML += `<div id="${idChargement}" class="text-slate-500 text-xs italic mt-1 ml-2 flex items-center gap-1.5">⚡ NZK_AGENT analyse le contexte informatique...</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            try {
+                const reponseServeur = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+                
+                const data = await reponseServeur.json();
+                document.getElementById(idChargement).remove();
+
+                if (data.reponse) {
+                    let texteBrut = data.reponse;
+                    let composantBrouillonHtml = '';
+
+                    // Analyse par Regex pour détecter si l'IA demande une génération de mail
+                    const regexDraft = /<DRAFT>([\s\S]*?)<\/DRAFT>/i;
+                    const match = texteBrut.match(regexDraft);
+
+                    if (match) {
+                        // On extrait le bloc technique pour ne pas polluer l'affichage de discussion
+                        texteBrut = texteBrut.replace(regexDraft, '').trim();
+                        try {
+                            const donneesMail = JSON.parse(match[1].trim());
+                            const idUniqueBouton = "btn-action-" + Date.now();
+                            
+                            // Encodage en base64 pour insérer l'objet de façon propre dans le DOM
+                            const strMail = JSON.stringify(donneesMail);
+                            const b64Mail = btoa(unescape(encodeURIComponent(strMail)));
+
+                            // Construction du composant interactif
+                            composantBrouillonHtml = `
+                                <div class="mt-2 p-4 bg-slate-950 border border-teal-500/20 rounded-2xl text-slate-200 shadow-xl max-w-[85%] w-full border-l-4 border-l-teal-400 space-y-3">
+                                    <div class="flex items-center justify-between border-b border-slate-900 pb-2">
+                                        <span class="text-xs font-bold text-teal-400 uppercase tracking-wider">📋 Action : Brouillon Automatique</span>
+                                    </div>
+                                    <div class="text-xs space-y-1 text-slate-400">
+                                        <div><span class="text-slate-600 font-semibold">À :</span> ${donneesMail.to}</div>
+                                        <div><span class="text-slate-600 font-semibold">Sujet :</span> ${donneesMail.subject}</div>
+                                    </div>
+                                    <div class="p-3 bg-slate-900/80 rounded-xl text-slate-300 text-xs whitespace-pre-wrap leading-relaxed italic border border-slate-900">${donneesMail.body}</div>
+                                    <button id="${idUniqueBouton}" onclick="envoyerBrouillon('${b64Mail}', '${idUniqueBouton}')" class="w-full py-2.5 px-4 bg-teal-400 hover:bg-teal-500 text-slate-950 font-bold rounded-xl text-sm transition shadow-lg shadow-teal-500/10">
+                                        🚀 Confirmer et envoyer le mail
+                                    </button>
                                 </div>
-                                <button id="${btnId}" 
-                                    data-to="${escapeHtml(draftData.to)}" 
-                                    data-subject="${escapeHtml(draftData.subject)}" 
-                                    data-body="${escapeHtml(draftData.body)}" 
-                                    onclick="confirmerEnvoi(this)" 
-                                    class="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold py-2 px-4 rounded-lg w-full transition shadow-lg shadow-teal-500/20">
-                                    Confirmer l'envoi
-                                </button>
+                            `;
+                        } catch (errJson) {
+                            console.error("Erreur structurelle JSON Brouillon :", errJson);
+                        }
+                    }
+
+                    // Affichage de la réponse texte de l'IA (s'il en reste)
+                    if (texteBrut) {
+                        const texteFormate = texteBrut.replace(/\n/g, '<br>');
+                        chatBox.innerHTML += `
+                            <div class="bg-slate-800 border border-slate-700 text-white p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm mt-2">
+                                ${texteFormate}
                             </div>
                         `;
-                    } catch (e) {
-                        console.error("Erreur parsing JSON du draft de l'IA:", e);
+                    }
+
+                    // Injection du bloc de confirmation
+                    if (composantBrouillonHtml) {
+                        chatBox.innerHTML += composantBrouillonHtml;
                     }
                 }
-
-                // Afficher le message de l'IA + le bouton s'il existe
-                const formatTexte = texteAffiche.replace(/\n/g, '<br>');
-                chatBox.innerHTML += `
-                    <div class="bg-slate-800 border border-slate-700 text-white p-4 rounded-xl rounded-tl-none max-w-[85%] w-fit shadow-sm mt-2">
-                        ${formatTexte}
-                        ${interfaceEnvoiHtml}
-                    </div>
-                `;
+            } catch (erreur) {
+                if (document.getElementById(idChargement)) {
+                    document.getElementById(idChargement).remove();
+                }
+                chatBox.innerHTML += `<div class="text-red-400 text-xs mt-2 ml-2">❌ Erreur réseau de la console de communication.</div>`;
             }
-        } catch (erreur) {
-            document.getElementById(idChargement)?.remove();
-            chatBox.innerHTML += `<div class="text-red-500 text-sm mt-2 ml-2">Erreur de connexion au serveur.</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
 
-    // Fonction pour envoyer l'API Request vers Flask
-    async function confirmerEnvoi(btnElement) {
-        const to = btnElement.getAttribute('data-to');
-        const subject = btnElement.getAttribute('data-subject');
-        const body = btnElement.getAttribute('data-body');
-
-        // Changer l'état du bouton
-        btnElement.disabled = true;
-        btnElement.innerText = "Envoi en cours...";
-        btnElement.classList.replace('bg-teal-500', 'bg-slate-600');
-        btnElement.classList.remove('hover:bg-teal-400', 'shadow-teal-500/20');
-
-        try {
-            const response = await fetch('/send_email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ to: to, subject: subject, body: body })
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                btnElement.innerText = "E-mail envoyé avec succès ✓";
-                btnElement.classList.replace('bg-slate-600', 'bg-emerald-500');
-            } else {
-                btnElement.innerText = "Échec de l'envoi : " + (result.error || "Erreur inconnue");
-                btnElement.classList.replace('bg-slate-600', 'bg-red-500');
-            }
-        } catch (error) {
-            btnElement.innerText = "Erreur de connexion";
-            btnElement.classList.replace('bg-slate-600', 'bg-red-500');
-        }
-    }
-
-    document.getElementById('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') envoyerMessage(); });
-</script>
+        // Liaison de la touche Entrée pour l'ergonomie
+        document.getElementById('chat-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') envoyerMessage();
+        });
+    </script>
+</body>
 </html>
