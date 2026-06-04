@@ -32,9 +32,9 @@ SCOPES = [
     'https://www.googleapis.com/auth/gmail.send'
 ]
 
-# Initialisation de l'IA Google Gemini (Unifié strictement sous 'model_ia')
+# Initialisation de l'IA avec TON modèle d'origine : gemini-2.5-flash-lite
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model_ia = genai.GenerativeModel('gemini-2.5-flash')
+model_ia = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 def get_flow():
     return Flow.from_client_config(
@@ -65,7 +65,6 @@ def generer_resume_ia(sujet, expediteur, corps_texte):
 
         RÉPONSE ATTENDUE : Uniquement ton résumé en français, rien d'autre.
         """
-        # Utilisation de model_ia corrigée ici
         response = model_ia.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
@@ -169,17 +168,17 @@ def page_agent():
         return f"<h2>Erreur de traitement</h2><pre>{traceback.format_exc()}</pre>", 500
 
 
-# --- ROUTE DU CHAT IA (Avec contexte des e-mails) ---
+# --- ROUTE DU CHAT IA (Sécurisée et alignée sur gemini-2.5-flash-lite) ---
 @app.route('/chat', methods=['POST'])
 def chat_ia():
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         user_message = data.get('message', '')
         if not user_message:
             return jsonify({"reponse": "Tu n'as rien écrit !"}), 400
 
-        # Récupération discrète des 5 derniers e-mails pour donner du contexte à l'IA
-        contexte_emails = "Aucun e-mail récent trouvé."
+        # Récupération sécurisée du contexte e-mail
+        contexte_emails = "Aucun e-mail récent trouvé ou accès non autorisé."
         try:
             service = get_gmail_service()
             recent = service.users().messages().list(userId='me', maxResults=5).execute().get('messages', [])
@@ -191,9 +190,10 @@ def chat_ia():
                 sub = next((x['value'] for x in h if x['name'] == 'Subject'), 'Sans sujet')
                 snip = d.get('snippet', '')
                 details.append(f"- De: {frm} | Sujet: {sub} | Extrait: {snip}")
-            contexte_emails = "\n".join(details)
+            if details:
+                contexte_emails = "\n".join(details)
         except Exception:
-            pass # Si erreur, l'IA répondra sans contexte
+            pass 
 
         prompt_systeme = f"""
         Tu es NZK_AGENT, un assistant personnel intelligent. Voici les 5 derniers e-mails reçus par l'utilisateur :
@@ -210,13 +210,18 @@ def chat_ia():
         </DRAFT>
         """
         
-        # Utilisation de model_ia corrigée ici
         response = model_ia.generate_content(prompt_systeme)
-        return jsonify({"reponse": response.text})
+        
+        try:
+            reponse_texte = response.text
+        except Exception:
+            reponse_texte = "Je ne peux pas formater cette réponse pour le moment. Réessayez avec une formulation différente."
+            
+        return jsonify({"reponse": reponse_texte})
         
     except Exception as e:
-        print(f"ERREUR IA CHAT : {str(e)}")
-        return jsonify({"reponse": "Désolé, le réseau neuronal est temporairement indisponible."}), 500
+        print(f"!!! CRASH CHAT IA !!! : {str(e)}")
+        return jsonify({"reponse": "Désolé, le réseau neuronal rencontre un problème technique temporaire."}), 500
 
 # --- ROUTE D'ENVOI D'E-MAIL ---
 @app.route('/send_email', methods=['POST'])
@@ -224,7 +229,7 @@ def send_email_route():
     if 'credentials' not in session:
         return jsonify({"success": False, "error": "Session expirée, veuillez vous reconnecter."}), 401
     
-    data = request.get_json()
+    data = request.get_json() or {}
     try:
         service = get_gmail_service()
         message = EmailMessage()
@@ -242,4 +247,3 @@ def send_email_route():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-    
