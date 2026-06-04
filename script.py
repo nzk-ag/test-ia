@@ -45,7 +45,7 @@ def executer_appel_gemini(prompt):
     genai.configure(api_key=api_key)
     
     # Liste ordonnée de modèles récents et stables
-    modeles = ['gemini-2.5-flash', 'gemini-2.5-flash_lite', 'gemini-2.0-flash']
+    modeles = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3-flash-preview']
     derniere_erreur = None
     
     for nom_modele in modeles:
