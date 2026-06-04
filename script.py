@@ -26,15 +26,15 @@ app.config.update(
 
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "{}"))
 
-# AJOUT DE LA PERMISSION D'ENVOI (gmail.send)
+# PERMISSIONS GMAIL (Lecture + Envoi)
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send'
 ]
 
-# Initialisation de l'IA Google Gemini (unification de la variable 'model')
+# Initialisation de l'IA Google Gemini (Unifié strictement sous 'model_ia')
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-2.5-flash')
+model_ia = genai.GenerativeModel('gemini-2.5-flash')
 
 def get_flow():
     return Flow.from_client_config(
@@ -65,7 +65,8 @@ def generer_resume_ia(sujet, expediteur, corps_texte):
 
         RÉPONSE ATTENDUE : Uniquement ton résumé en français, rien d'autre.
         """
-        response = model.generate_content(prompt)
+        # Utilisation de model_ia corrigée ici
+        response = model_ia.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
         print(f"Erreur Résumé IA : {str(e)}")
@@ -190,4 +191,55 @@ def chat_ia():
                 sub = next((x['value'] for x in h if x['name'] == 'Subject'), 'Sans sujet')
                 snip = d.get('snippet', '')
                 details.append(f"- De: {frm} | Sujet: {sub} | Extrait: {snip}")
-            contexte_emails = "\n".join
+            contexte_emails = "\n".join(details)
+        except Exception:
+            pass # Si erreur, l'IA répondra sans contexte
+
+        prompt_systeme = f"""
+        Tu es NZK_AGENT, un assistant personnel intelligent. Voici les 5 derniers e-mails reçus par l'utilisateur :
+        {contexte_emails}
+
+        L'utilisateur te demande : "{user_message}"
+
+        RÈGLES D'ACTION :
+        1. Réponds en français, de manière concise. Tu peux renseigner l'utilisateur sur ses e-mails.
+        2. SI l'utilisateur te demande de rédiger ou de générer une réponse à un de ces e-mails, rédige le message naturellement. 
+        3. CRITIQUE : Si tu as rédigé un brouillon d'e-mail à envoyer, tu DOIS ABSOLUMENT inclure à la TOUTE FIN de ta réponse le bloc JSON suivant, exactement formaté et entouré des balises <DRAFT> et </DRAFT> (sans markdown autour) :
+        <DRAFT>
+        {{"to": "email_de_la_personne@domaine.com", "subject": "Re: Sujet du mail d'origine", "body": "Le texte exact de l'e-mail à envoyer, sans formules de politesse de l'IA"}}
+        </DRAFT>
+        """
+        
+        # Utilisation de model_ia corrigée ici
+        response = model_ia.generate_content(prompt_systeme)
+        return jsonify({"reponse": response.text})
+        
+    except Exception as e:
+        print(f"ERREUR IA CHAT : {str(e)}")
+        return jsonify({"reponse": "Désolé, le réseau neuronal est temporairement indisponible."}), 500
+
+# --- ROUTE D'ENVOI D'E-MAIL ---
+@app.route('/send_email', methods=['POST'])
+def send_email_route():
+    if 'credentials' not in session:
+        return jsonify({"success": False, "error": "Session expirée, veuillez vous reconnecter."}), 401
+    
+    data = request.get_json()
+    try:
+        service = get_gmail_service()
+        message = EmailMessage()
+        message.set_content(data.get('body', ''))
+        message['To'] = data.get('to', '')
+        message['Subject'] = data.get('subject', '')
+
+        encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        create_message = {'raw': encoded_message}
+        
+        service.users().messages().send(userId="me", body=create_message).execute()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
+    
