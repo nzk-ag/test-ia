@@ -2,13 +2,14 @@ import os
 import json
 import base64
 import traceback
+from email.message import EmailMessage
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
 import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+
 # Forcer la tolérance du HTTP interne pour le proxy de Render
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
@@ -24,14 +25,16 @@ app.config.update(
 )
 
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "{}"))
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
-# Initialisation de l'IA Google Gemini
+# AJOUT DE LA PERMISSION D'ENVOI (gmail.send)
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.send'
+]
+
+# Initialisation de l'IA Google Gemini (unification de la variable 'model')
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel(
-    model_name='gemini-2.5-flash',
-    tools=[{'google_search_retrieval': {}}]
-)
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 def get_flow():
     return Flow.from_client_config(
@@ -47,34 +50,32 @@ def get_gmail_service():
     return build('gmail', 'v1', credentials=creds)
 
 def generer_resume_ia(sujet, expediteur, corps_texte):
-    """Demande à l'IA de nettoyer le texte et de générer un résumé strict en français."""
+    """Demande à l'IA de nettoyer le texte et de générer un résumé strict en 2 phrases max, en français."""
     try:
         prompt = f"""
-        Tu es NZK_AGENT. Analyse l'e-mail suivant et fais-en un résumé en exactement 2 phrases claires et structurées.
+        Tu es NZK_AGENT. Analyse l'e-mail suivant et fais-en un résumé en MAXIMUM 2 phrases claires et structurées.
         
-        CONSIGNE ABSOLUE : Tu dois OBLIGATOIREMENT rédiger le résumé en français, même si l'e-mail d'origine, le sujet ou l'expéditeur sont en anglais.
-        
-        Élimine tout le bruit inutile (liens, signatures, codes d'erreur bruts) pour ne garder que l'intention réelle du message.
+        CONSIGNE ABSOLUE : Tu dois OBLIGATOIREMENT rédiger le résumé en FRANÇAIS, même si l'e-mail d'origine est en anglais.
+        Élimine le bruit (liens, signatures, codes) pour ne garder que l'intention réelle.
 
         DÉTAILS DE L'E-MAIL :
         - Expéditeur : {expediteur}
         - Sujet : {sujet}
         - Contenu brut : {corps_texte}
 
-        RÉPONSE ATTENDUE : Uniquement les 2 phrases de résumé en français, rien d'autre.
+        RÉPONSE ATTENDUE : Uniquement ton résumé en français, rien d'autre.
         """
-        response = model_ia.generate_content(prompt)
+        response = model.generate_content(prompt)
         return response.text.strip()
-    except Exception as ia_error:
-        print(f"Erreur Résumé IA : {str(ia_error)}")
+    except Exception as e:
+        print(f"Erreur Résumé IA : {str(e)}")
         return corps_texte[:150] + "..."
 
 @app.route('/')
 def home():
-    return render_template('agent.html', authenticated=True) # Mettre à True pour tester sans OAuth
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    if 'credentials' in session:
+        return redirect(url_for('page_agent', _scheme='https', _external=True))
+    return render_template('agent.html', authenticated=False)
 
 @app.route('/login')
 def login():
@@ -84,6 +85,11 @@ def login():
     if hasattr(flow, 'code_verifier'):
         session['code_verifier'] = flow.code_verifier
     return redirect(auth_url)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('home'))
 
 @app.route('/oauth2callback')
 def oauth2callback():
@@ -114,7 +120,7 @@ def oauth2callback():
         
     except Exception as e:
         print(f"!!! CRASH OAUTH !!! : {str(e)}")
-        return f"<h2>Erreur OAuth !</h2><pre>{traceback.format_exc()}</pre>", 500
+        return f"<h2>Erreur OAuth ! Vérifiez vos clés.</h2><pre>{traceback.format_exc()}</pre>", 500
 
 @app.route('/agent')
 def page_agent():
@@ -130,16 +136,11 @@ def page_agent():
         
         if messages:
             for msg in messages:
-                msg_detail = service.users().messages().get(
-                    userId='me', id=msg['id'], format='full'
-                ).execute()
-                
+                msg_detail = service.users().messages().get(userId='me', id=msg['id'], format='full').execute()
                 payload = msg_detail.get('payload', {})
                 headers = payload.get('headers', [])
                 
-                sujet = "Sans sujet"
-                expediteur = "Inconnu"
-                
+                sujet, expediteur = "Sans sujet", "Inconnu"
                 for header in headers:
                     if header['name'] == 'Subject': sujet = header['value']
                     if header['name'] == 'From': expediteur = header['value']
@@ -147,48 +148,46 @@ def page_agent():
                 texte_brut = msg_detail.get('snippet', '')
                 if not texte_brut:
                     parts = payload.get('parts', [])
-                    if parts:
-                        for part in parts:
-                            if part['mimeType'] == 'text/plain':
-                                data = part['body'].get('data', '')
-                                texte_brut = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
-                                break
+                    for part in parts:
+                        if part['mimeType'] == 'text/plain':
+                            data = part['body'].get('data', '')
+                            texte_brut = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+                            break
                 
-                # Appel du résumé personnalisé
-                resume_ia = generer_resume_ia(sujet, expediteur, texte_brut)
-                        
                 historique_mails.append({
                     'sujet': sujet,
-                    'resume': resume_ia
+                    'resume': generer_resume_ia(sujet, expediteur, texte_brut)
                 })
                 
         return render_template('agent.html', authenticated=True, historique=historique_mails)
         
     except Exception as e:
-        if "invalid_grant" in str(e).lower() or "expired" in str(e).lower():
-            session.pop('credentials', None)
+        if "invalid_grant" in str(e).lower() or "expired" in str(e).lower() or "insufficient" in str(e).lower():
+            session.clear()
             return redirect(url_for('login', _scheme='https', _external=True))
-            
-        print(f"!!! CRASH DANS PAGE_AGENT !!! : {str(e)}")
-        return f"<h2>Erreur de traitement des e-mails</h2><pre>{traceback.format_exc()}</pre>", 500
+        return f"<h2>Erreur de traitement</h2><pre>{traceback.format_exc()}</pre>", 500
 
 
-# --- CONFIGURATION ET CORRECTION DU CHAT IA ---
+# --- ROUTE DU CHAT IA (Avec contexte des e-mails) ---
 @app.route('/chat', methods=['POST'])
 def chat_ia():
     try:
         data = request.get_json()
         user_message = data.get('message', '')
-        
         if not user_message:
             return jsonify({"reponse": "Tu n'as rien écrit !"}), 400
 
-        # Instructions système pour donner une personnalité à ton agent
-        prompt = f"Tu es NZK_AGENT, un assistant personnel efficace. Réponds de façon concise. Question : {user_message}"
-        
-        response = model.generate_content(prompt)
-        return jsonify({"reponse": response.text})
-        
-    except Exception as e:
-        print(f"ERREUR IA : {str(e)}")
-        return jsonify({"reponse": "Désolé, le réseau neuronal est temporairement indisponible."}), 500
+        # Récupération discrète des 5 derniers e-mails pour donner du contexte à l'IA
+        contexte_emails = "Aucun e-mail récent trouvé."
+        try:
+            service = get_gmail_service()
+            recent = service.users().messages().list(userId='me', maxResults=5).execute().get('messages', [])
+            details = []
+            for m in recent:
+                d = service.users().messages().get(userId='me', id=m['id'], format='full').execute()
+                h = d.get('payload', {}).get('headers', [])
+                frm = next((x['value'] for x in h if x['name'] == 'From'), 'Inconnu')
+                sub = next((x['value'] for x in h if x['name'] == 'Subject'), 'Sans sujet')
+                snip = d.get('snippet', '')
+                details.append(f"- De: {frm} | Sujet: {sub} | Extrait: {snip}")
+            contexte_emails = "\n".join
