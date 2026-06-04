@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import html
 import traceback
 from email.message import EmailMessage
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
@@ -10,13 +11,13 @@ from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
 import google.generativeai as genai
 
-# Forcer la tolérance du HTTP interne pour le proxy de Render
+# Configuration de l'environnement pour Render
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "une_cle_tres_longue_et_fixe_a_ne_pas_changer_123456789")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "nzk_agent_ultra_secure_key_987654321")
 
-# Configuration Proxy et Cookies pour Render
+# Paramètres Proxy et Cookies pour préserver la session sur Render
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config.update(
     SESSION_COOKIE_SECURE=True,    
@@ -26,36 +27,37 @@ app.config.update(
 
 CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "{}"))
 
-# PERMISSIONS GMAIL (Lecture + Envoi)
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send'
 ]
 
-# Configuration initiale de l'API Google GenAI
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+# Initialisation sécurisée de l'API Generative AI
+api_key_gemini = os.environ.get("GEMINI_API_KEY")
+if api_key_gemini:
+    genai.configure(api_key=api_key_gemini)
 
-def appeler_gemini_resilient(prompt):
+def executer_appel_gemini(prompt):
     """
-    Tente d'appeler l'IA avec une liste de modèles triés par pertinence.
-    Évite les crashs si un nom de modèle spécifique est rejeté par l'infrastructure.
+    Exécute un appel résilient vers l'API Gemini en testant les identifiants de modèles stables.
     """
-    modeles_candidats = [
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-2.0-flash-lite'
-    ]
+    if not os.environ.get("GEMINI_API_KEY"):
+        raise Exception("La variable d'environnement GEMINI_API_KEY est introuvable ou vide.")
+        
+    modeles = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite']
     derniere_erreur = None
-    for nom_modele in modeles_candidats:
+    
+    for nom_modele in modeles:
         try:
             model = genai.GenerativeModel(nom_modele)
             response = model.generate_content(prompt)
-            return response.text
+            if response and response.text:
+                return response.text
         except Exception as e:
             derniere_erreur = e
             continue
-    raise derniere_erreur or Exception("Aucun modèle Gemini n'a pu répondre.")
+            
+    raise derniere_erreur or Exception("Aucun modèle de l'écosystème Gemini n'a répondu.")
 
 def get_flow():
     return Flow.from_client_config(
@@ -66,28 +68,24 @@ def get_flow():
 
 def get_gmail_service():
     if 'credentials' not in session:
-        raise Exception("Non authentifié")
+        raise Exception("Utilisateur non connecté à Google.")
     creds = Credentials(**session['credentials'])
     return build('gmail', 'v1', credentials=creds)
 
 def generer_resume_ia(sujet, expediteur, corps_texte):
-    """Génère un résumé strict et propre via le moteur résilient."""
+    """Nettoie le contenu et génère un résumé propre."""
     try:
         prompt = f"""
-        Tu es NZK_AGENT. Analyse l'e-mail suivant et fais-en un résumé en MAXIMUM 2 phrases claires.
-        CONSIGNE ABSOLUE : Rédige obligatoirement en FRANÇAIS.
-
-        DÉTAILS DE L'E-MAIL :
-        - Expéditeur : {expediteur}
-        - Sujet : {sujet}
-        - Contenu brut : {corps_texte}
-
-        RÉPONSE ATTENDUE : Uniquement ton résumé en français, sans fioritures.
+        Tu es NZK_AGENT. Analyse cet e-mail et rédige un résumé clair en MAXIMUM 2 phrases en FRANÇAIS.
+        Expéditeur : {expediteur}
+        Sujet : {sujet}
+        Contenu : {corps_texte}
         """
-        return appeler_gemini_resilient(prompt).strip()
+        return executer_appel_gemini(prompt).strip()
     except Exception as e:
-        print(f"Erreur Résumé IA : {str(e)}")
-        return corps_texte[:150] + "..."
+        print(f"[LOG] Erreur génération résumé : {str(e)}")
+        # Nettoyage des entités HTML pour un rendu visuel impeccable en cas de fallback
+        return html.unescape(corps_texte[:140]) + "..."
 
 @app.route('/')
 def home():
@@ -112,16 +110,14 @@ def logout():
 @app.route('/oauth2callback')
 def oauth2callback():
     if 'state' not in session:
-        return "Session perdue, veuillez recommencer.", 400
-        
+        return "Session expirée.", 400
     try:
         flow = get_flow()
         authorization_response = request.url.replace('http://', 'https://')
-        
         kwargs = {}
         if 'code_verifier' in session:
             kwargs['code_verifier'] = session['code_verifier']
-        
+            
         flow.fetch_token(authorization_response=authorization_response, **kwargs)
         session.pop('code_verifier', None)
         
@@ -135,21 +131,18 @@ def oauth2callback():
             'scopes': credentials.scopes
         }
         return redirect(url_for('page_agent', _scheme='https', _external=True))
-        
     except Exception as e:
         print(f"!!! CRASH OAUTH !!! : {str(e)}")
-        return f"<h2>Erreur d'authentification</h2><pre>{traceback.format_exc()}</pre>", 500
+        return f"Erreur d'authentification : {str(e)}", 500
 
 @app.route('/agent')
 def page_agent():
     if 'credentials' not in session:
         return render_template('agent.html', authenticated=False)
-
     try:
         service = get_gmail_service()
         results = service.users().messages().list(userId='me', maxResults=10).execute()
         messages = results.get('messages', [])
-        
         historique_mails = []
         
         if messages:
@@ -158,10 +151,10 @@ def page_agent():
                 payload = msg_detail.get('payload', {})
                 headers = payload.get('headers', [])
                 
-                sujet, expediteur = "Sans sujet", "Inconnu"
-                for header in headers:
-                    if header['name'] == 'Subject': sujet = header['value']
-                    if header['name'] == 'From': expediteur = header['value']
+                sujet, expediteur = "Sans objet", "Inconnu"
+                for h_item in headers:
+                    if h_item['name'] == 'Subject': sujet = h_item['value']
+                    if h_item['name'] == 'From': expediteur = h_item['value']
                 
                 texte_brut = msg_detail.get('snippet', '')
                 if not texte_brut:
@@ -173,77 +166,72 @@ def page_agent():
                             break
                 
                 historique_mails.append({
-                    'sujet': sujet,
+                    'sujet': html.unescape(sujet),
                     'resume': generer_resume_ia(sujet, expediteur, texte_brut)
                 })
-                
         return render_template('agent.html', authenticated=True, historique=historique_mails)
-        
     except Exception as e:
-        if "invalid_grant" in str(e).lower() or "expired" in str(e).lower() or "insufficient" in str(e).lower():
+        if any(x in str(e).lower() for x in ["invalid_grant", "expired", "insufficient"]):
             session.clear()
             return redirect(url_for('login', _scheme='https', _external=True))
-        return f"<h2>Erreur de traitement</h2><pre>{traceback.format_exc()}</pre>", 500
+        return f"Erreur serveur : {str(e)}", 500
 
-
-# --- CONFIGURATION CHAT IA ---
+# --- AXE TECHNIQUE : ROUTE DU CHAT IA CORRIGÉE ---
 @app.route('/chat', methods=['POST'])
 def chat_ia():
     try:
         data = request.get_json() or {}
         user_message = data.get('message', '')
         if not user_message:
-            return jsonify({"reponse": "Le message est vide."}), 400
+            return jsonify({"reponse": "Message vide."}), 400
 
-        # Récupération sécurisée des e-mails pour donner du contexte à la discussion
-        contexte_emails = "Aucun e-mail récent accessible."
+        # Collecte du contexte de messagerie pour l'associer aux requêtes du chat
+        contexte_emails = "Aucun e-mail disponible actuellement."
         try:
             service = get_gmail_service()
             recent = service.users().messages().list(userId='me', maxResults=5).execute().get('messages', [])
             details = []
-            for i, m in enumerate(recent):
+            for idx, m in enumerate(recent):
                 d = service.users().messages().get(userId='me', id=m['id'], format='full').execute()
                 h = d.get('payload', {}).get('headers', [])
                 frm = next((x['value'] for x in h if x['name'] == 'From'), 'Inconnu')
-                sub = next((x['value'] for x in h if x['name'] == 'Subject'), 'Sans sujet')
+                sub = next((x['value'] for x in h if x['name'] == 'Subject'), 'Sans objet')
                 snip = d.get('snippet', '')
-                details.append(f"E-mail #{i+1} :\n- Expéditeur : {frm}\n- Sujet : {sub}\n- Extrait : {snip}\n")
+                details.append(f"E-mail #{idx+1} :\n- De : {frm}\n- Objet : {sub}\n- Extrait : {snip}\n")
             if details:
                 contexte_emails = "\n".join(details)
         except Exception:
-            pass 
+            pass
 
         prompt_systeme = f"""
-        Tu es NZK_AGENT, un assistant personnel intelligent et technique. Tu as accès aux 5 derniers e-mails de l'utilisateur :
+        Tu es NZK_AGENT, un assistant d'exploitation connecté aux e-mails de l'utilisateur. 
+        Voici ses 5 derniers messages reçus :
         {contexte_emails}
 
-        L'utilisateur te dit : "{user_message}"
+        Demande de l'utilisateur : "{user_message}"
 
-        CONSIGNES :
-        1. Réponds de façon concise, polie et directement en français.
-        2. SI l'utilisateur te demande de rédiger, générer, ou de répondre à un e-mail, formule ta réponse et génère IMPÉRATIVEMENT à la toute fin de ton message le bloc JSON structuré suivant délimité par <DRAFT> et </DRAFT>.
-        3. Dans le champ "to", extrais proprement uniquement l'adresse e-mail (ex: "contact@lien.com").
+        CONSIGNES OBLIGATOIRES :
+        1. Réponds brièvement et en français.
+        2. Si l'utilisateur demande d'écrire, de générer ou de répondre à un mail, rédige ton texte explicatif normalement, puis intègre STRUCTURELLEMENT à la toute fin de ton message le bloc JSON exact délimité par <DRAFT> et </DRAFT>.
+        3. Nettoie rigoureusement le champ "to" pour n'inclure que l'adresse e-mail pure (ex: "nom@domaine.com").
         
-        Format obligatoire (ne mets rien d'autre entre ces balises) :
+        Format attendu :
         <DRAFT>
-        {{"to": "adresse_destinataire@domaine.com", "subject": "Objet du mail", "body": "Texte complet du mail rédigé"}}
+        {{"to": "destinataire@domaine.com", "subject": "Sujet du message", "body": "Contenu intégral du mail rédigé"}}
         </DRAFT>
         """
         
-        reponse_texte = appeler_gemini_resilient(prompt_systeme)
+        reponse_texte = executer_appel_gemini(prompt_systeme)
         return jsonify({"reponse": reponse_texte})
         
     except Exception as e:
-        print(f"!!! CRASH CHAT IA !!! : {str(e)}")
+        print(f"!!! ERREUR CHAT EXCEPTION !!! : {str(e)}")
         return jsonify({"reponse": "Désolé, ma console rencontre une anomalie technique temporaire."}), 500
 
-
-# --- ENVOI DE COMPTE DE MESSAGERIE ---
 @app.route('/send_email', methods=['POST'])
 def send_email_route():
     if 'credentials' not in session:
-        return jsonify({"success": False, "error": "Session non authentifiée."}), 401
-    
+        return jsonify({"success": False, "error": "Non authentifié"}), 401
     data = request.get_json() or {}
     try:
         service = get_gmail_service()
@@ -254,7 +242,6 @@ def send_email_route():
 
         encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
         create_message = {'raw': encoded_message}
-        
         service.users().messages().send(userId="me", body=create_message).execute()
         return jsonify({"success": True})
     except Exception as e:
