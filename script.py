@@ -32,7 +32,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/gmail.send'
 ]
 
-# Initialisation de l'IA avec TON modèle d'origine : gemini-2.5-flash-lite
+# Initialisation de l'IA avec ton modèle gemini-2.5-flash-lite
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model_ia = genai.GenerativeModel('gemini-2.5-flash-lite')
 
@@ -50,13 +50,11 @@ def get_gmail_service():
     return build('gmail', 'v1', credentials=creds)
 
 def generer_resume_ia(sujet, expediteur, corps_texte):
-    """Demande à l'IA de nettoyer le texte et de générer un résumé strict en 2 phrases max, en français."""
+    """Demande à l'IA de nettoyer le texte et de générer un résumé en français."""
     try:
         prompt = f"""
-        Tu es NZK_AGENT. Analyse l'e-mail suivant et fais-en un résumé en MAXIMUM 2 phrases claires et structurées.
-        
-        CONSIGNE ABSOLUE : Tu dois OBLIGATOIREMENT rédiger le résumé en FRANÇAIS, même si l'e-mail d'origine est en anglais.
-        Élimine le bruit (liens, signatures, codes) pour ne garder que l'intention réelle.
+        Tu es NZK_AGENT. Analyse l'e-mail suivant et fais-en un résumé en MAXIMUM 2 phrases claires.
+        CONSIGNE ABSOLUE : Rédige obligatoirement en FRANÇAIS.
 
         DÉTAILS DE L'E-MAIL :
         - Expéditeur : {expediteur}
@@ -120,7 +118,7 @@ def oauth2callback():
         
     except Exception as e:
         print(f"!!! CRASH OAUTH !!! : {str(e)}")
-        return f"<h2>Erreur OAuth ! Vérifiez vos clés.</h2><pre>{traceback.format_exc()}</pre>", 500
+        return f"<h2>Erreur OAuth !</h2><pre>{traceback.format_exc()}</pre>", 500
 
 @app.route('/agent')
 def page_agent():
@@ -168,7 +166,7 @@ def page_agent():
         return f"<h2>Erreur de traitement</h2><pre>{traceback.format_exc()}</pre>", 500
 
 
-# --- ROUTE DU CHAT IA (Sécurisée et alignée sur gemini-2.5-flash-lite) ---
+# --- ROUTE DU CHAT IA ENRICHI ---
 @app.route('/chat', methods=['POST'])
 def chat_ia():
     try:
@@ -177,57 +175,58 @@ def chat_ia():
         if not user_message:
             return jsonify({"reponse": "Tu n'as rien écrit !"}), 400
 
-        # Récupération sécurisée du contexte e-mail
-        contexte_emails = "Aucun e-mail récent trouvé ou accès non autorisé."
+        # Récupération et indexation précise des e-mails pour le contexte
+        contexte_emails = "Aucun e-mail récent trouvé."
         try:
             service = get_gmail_service()
             recent = service.users().messages().list(userId='me', maxResults=5).execute().get('messages', [])
             details = []
-            for m in recent:
+            for i, m in enumerate(recent):
                 d = service.users().messages().get(userId='me', id=m['id'], format='full').execute()
                 h = d.get('payload', {}).get('headers', [])
                 frm = next((x['value'] for x in h if x['name'] == 'From'), 'Inconnu')
                 sub = next((x['value'] for x in h if x['name'] == 'Subject'), 'Sans sujet')
                 snip = d.get('snippet', '')
-                details.append(f"- De: {frm} | Sujet: {sub} | Extrait: {snip}")
+                # Formatage clair indexé par numéro
+                details.append(f"E-mail #{i+1} :\n- Expéditeur : {frm}\n- Sujet : {sub}\n- Extrait : {snip}\n")
             if details:
                 contexte_emails = "\n".join(details)
         except Exception:
             pass 
 
         prompt_systeme = f"""
-        Tu es NZK_AGENT, un assistant personnel intelligent. Voici les 5 derniers e-mails reçus par l'utilisateur :
+        Tu es NZK_AGENT, un assistant IA connecté à la boîte mail de l'utilisateur. 
+        Voici la liste indexée de ses 5 derniers e-mails :
         {contexte_emails}
 
-        L'utilisateur te demande : "{user_message}"
+        L'utilisateur t'envoie ce message : "{user_message}"
 
-        RÈGLES D'ACTION :
-        1. Réponds en français, de manière concise. Tu peux renseigner l'utilisateur sur ses e-mails.
-        2. SI l'utilisateur te demande de rédiger ou de générer une réponse à un de ces e-mails, rédige le message naturellement. 
-        3. CRITIQUE : Si tu as rédigé un brouillon d'e-mail à envoyer, tu DOIS ABSOLUMENT inclure à la TOUTE FIN de ta réponse le bloc JSON suivant, exactement formaté et entouré des balises <DRAFT> et </DRAFT> (sans markdown autour) :
+        RÈGLES STRICTES ET MANDATORIRES :
+        1. Réponds de façon concise et en français.
+        2. SI l'utilisateur te demande d'écrire, de générer ou de répondre à un e-mail (ex: "réponds au mail #1 pour refuser"), tu DOIS formuler la réponse ET générer un bloc d'envoi automatique.
+        3. Pour générer ce bloc d'envoi automatique, ajoute TOUJOURS à la fin complète de ton message le bloc de structure JSON exact délimité par <DRAFT> et </DRAFT>. 
+           - Dans le champ "to", extrais uniquement l'adresse e-mail propre (ex: "exemple@domaine.com" au lieu de "Jean <exemple@domaine.com>").
+           - Dans "subject", mets un objet clair (ex: "Re: Objet initial").
+           - Dans "body", écris le message final, poli et complet, sans aucune remarque textuelle de ta part.
+        
+        Format obligatoire (Sans markdown autour du JSON) :
         <DRAFT>
-        {{"to": "email_de_la_personne@domaine.com", "subject": "Re: Sujet du mail d'origine", "body": "Le texte exact de l'e-mail à envoyer, sans formules de politesse de l'IA"}}
+        {{"to": "adresse_nettoyee@domaine.com", "subject": "Sujet du mail", "body": "Contenu complet du mail"}}
         </DRAFT>
         """
         
         response = model_ia.generate_content(prompt_systeme)
-        
-        try:
-            reponse_texte = response.text
-        except Exception:
-            reponse_texte = "Je ne peux pas formater cette réponse pour le moment. Réessayez avec une formulation différente."
-            
-        return jsonify({"reponse": reponse_texte})
+        return jsonify({"reponse": response.text})
         
     except Exception as e:
         print(f"!!! CRASH CHAT IA !!! : {str(e)}")
-        return jsonify({"reponse": "Désolé, le réseau neuronal rencontre un problème technique temporaire."}), 500
+        return jsonify({"reponse": "Désolé, le système rencontre une anomalie technique."}), 500
 
-# --- ROUTE D'ENVOI D'E-MAIL ---
+# --- ROUTE D'ENVOI DIRECT DE MAIL ---
 @app.route('/send_email', methods=['POST'])
 def send_email_route():
     if 'credentials' not in session:
-        return jsonify({"success": False, "error": "Session expirée, veuillez vous reconnecter."}), 401
+        return jsonify({"success": False, "error": "Authentification requise."}), 401
     
     data = request.get_json() or {}
     try:
