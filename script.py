@@ -29,7 +29,7 @@ CLIENT_CONFIG = json.loads(os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "{}"))
 
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/gmail.send'
+    'https://www.googleapis.com/auth/gmail.send' 
 ]
 
 def executer_appel_gemini(prompt):
@@ -240,24 +240,46 @@ def chat_ia():
         print(f"!!! ERREUR REQUÊTE CHAT !!! : {str(e)}")
         return jsonify({"reponse": f"Une erreur technique est survenue sur le serveur de l'IA : {str(e)}"}), 500
 
-@app.route('/send_email', methods=['POST'])
-def send_email_route():
+@app.route('/envoyer_mail', methods=['POST'])
+def envoyer_mail():
+    # 1. Vérification de la sécurité
     if 'credentials' not in session:
-        return jsonify({"success": False, "error": "Non authentifié"}), 401
-    data = request.get_json() or {}
-    try:
-        service = get_gmail_service()
-        message = EmailMessage()
-        message.set_content(data.get('body', ''))
-        message['To'] = data.get('to', '')
-        message['Subject'] = data.get('subject', '')
+        return jsonify({'succes': False, 'erreur': 'Non authentifié'}), 401
 
+    # 2. Récupération des données du frontend
+    donnees = request.get_json()
+    destinataire = donnees.get('destinataire')
+    sujet = donnees.get('sujet')
+    contenu = donnees.get('contenu')
+
+    if not destinataire or not contenu:
+         return jsonify({'succes': False, 'erreur': 'Données incomplètes'}), 400
+
+    try:
+        # 3. Initialisation du service Gmail
+        creds = Credentials(**session['credentials'])
+        service = build('gmail', 'v1', credentials=creds)
+
+        # 4. Construction propre de l'e-mail (Format MIME)
+        message = EmailMessage()
+        message.set_content(contenu)
+        message['To'] = destinataire
+        message['Subject'] = sujet
+
+        # 5. Encodage obligatoire pour l'API Gmail
         encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
         create_message = {'raw': encoded_message}
-        service.users().messages().send(userId="me", body=create_message).execute()
-        return jsonify({"success": True})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
 
+        # 6. Exécution de l'envoi
+        send_message = service.users().messages().send(userId="me", body=create_message).execute()
+
+        return jsonify({'succes': True, 'id': send_message['id']})
+
+    except Exception as e:
+        print(f"!!! CRASH ENVOI MAIL !!! : {str(e)}")
+        # Si le token est expiré, on nettoie la session
+        if "invalid_grant" in str(e).lower():
+            session.pop('credentials', None)
+        return jsonify({'succes': False, 'erreur': str(e)}), 500
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
